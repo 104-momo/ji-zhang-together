@@ -1,0 +1,13 @@
+{
+  "name": "ledgerApi",
+  "version": "1.0.0",
+  "description": "一起记账 · CloudBase 云函数（单函数多 action：账本/成员/账目/权限/解析）",
+  "main": "index.js",
+  "dependencies": {
+    "@cloudbase/node-sdk": "^2.8.0",
+    "pg": "^8.11.0"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
