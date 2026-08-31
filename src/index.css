@@ -928,6 +928,14 @@ select {
 .manage-section {
   margin-bottom: 22px;
 }
+.manage-danger {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--line, rgba(0, 0, 0, 0.1));
+}
+.manage-danger .manage-title {
+  color: var(--danger, #e5484d);
+}
 .manage-title {
   font-size: 12px;
   font-weight: 700;
