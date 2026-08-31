@@ -164,7 +164,12 @@ export function useLedger() {
   const updateEntry = useCallback(
     async (entryId: string, patch: { amount?: number; category?: Category; note?: string }) => {
       if (!current) throw new Error('请先进入账本')
-      return api.updateEntry(entryId, patch, current.myMember.id, current.myMember.nickname)
+      const updated = await api.updateEntry(entryId, patch, current.myMember.id, current.myMember.nickname)
+      // 立即把更新结果写回本地列表，不等轮询
+      setCurrent((c) =>
+        c ? { ...c, entries: c.entries.map((e) => (e.id === entryId ? updated : e)) } : c,
+      )
+      return updated
     },
     [current],
   )
@@ -172,6 +177,19 @@ export function useLedger() {
     async (entryId: string) => {
       if (!current) throw new Error('请先进入账本')
       await api.deleteEntry(entryId, current.myMember.id, current.myMember.nickname)
+      // 本地立即标记为已删除（与云端软删除行为一致），避免等 2s 轮询才消失
+      setCurrent((c) =>
+        c
+          ? {
+              ...c,
+              entries: c.entries.map((e) =>
+                e.id === entryId
+                  ? { ...e, amount: 0, note: (e.note ? e.note + ' · ' : '') + '【已删除】' }
+                  : e,
+              ),
+            }
+          : c,
+      )
     },
     [current],
   )
@@ -262,9 +280,11 @@ export function useLedger() {
     myLedgers,
     current,
     error,
+    clearError,
+    refreshMyLedgers,
+    openLedger,
     createLedger,
     joinLedger,
-    openLedger,
     leaveLedger,
     addEntry,
     updateEntry,
@@ -276,7 +296,5 @@ export function useLedger() {
     deleteLedger,
     updateCategories,
     canModify,
-    clearError,
-    setError,
   }
 }
