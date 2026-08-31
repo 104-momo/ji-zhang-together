@@ -14,6 +14,8 @@ export interface Member {
   ledgerId: string
   nickname: string
   joinedAt: number
+  /** CloudBase 模式下的登录用户 uid（服务端 owner_id 存的是 uid，用于创建者身份判断） */
+  uid?: string
 }
 export interface ModifyRecord {
   memberId: string

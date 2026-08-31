@@ -804,22 +804,6 @@ select {
 .bubble-row.mine .history {
   color: rgba(255, 255, 255, 0.7);
 }
-/* ============ 演示条 + 输入栏 ============ */
-.demo-bar {
-  flex-shrink: 0;
-  padding: 6px 16px;
-  background: var(--warn-soft);
-}
-.demo-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: #8a6018;
-}
-.demo-label input {
-  accent-color: var(--accent);
-}
 .input-bar {
   flex-shrink: 0;
   display: flex;

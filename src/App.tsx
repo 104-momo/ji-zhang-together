@@ -20,7 +20,6 @@ export default function App() {
   const {
     myLedgers,
     current,
-    demoOn,
     error,
     createLedger,
     joinLedger,
@@ -33,7 +32,6 @@ export default function App() {
     removeMember,
     regenerateInviteCode,
     updateCategories,
-    toggleDemo,
     clearError,
     setError,
   } = useLedger()
@@ -138,11 +136,9 @@ export default function App() {
     page = (
       <LedgerPage
         view={current}
-        demoOn={demoOn}
         onAddEntry={addEntry}
         onUpdateEntry={updateEntry}
         onDeleteEntry={deleteEntry}
-        onToggleDemo={toggleDemo}
         onBack={leaveLedger}
         onOpenStats={() => setShowStats(true)}
         onRename={handleRename}

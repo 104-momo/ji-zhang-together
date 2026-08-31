@@ -16,37 +16,21 @@ function loadIdentity(): Record<string, IdentityRecord> {
 function saveIdentity(v: Record<string, IdentityRecord>): void {
   localStorage.setItem(K_IDENTITY, JSON.stringify(v))
 }
-// 演示模式：模拟“他人”在同一账本实时记账
-const DEMO_NAMES = ['小王', '小李']
-const DEMO_SENTENCES = [
-  '吃烤鱼200',
-  '打车35.5',
-  '买奶茶18',
-  '星巴克拿铁38元',
-  '地铁6块',
-  '超市买菜80',
-  '买电影票45',
-  '红包200',
-  '药店买药56',
-]
 export interface LedgerView {
   ledger: Ledger
   members: Member[]
   entries: Entry[]
   myMember: Member
 }
+/** 兼容判断创建者身份：CloudBase 模式 ownerId 是 uid，mock 模式 ownerId 是 member.id */
+function isOwnerOf(ledger: Ledger, member: Member): boolean {
+  return ledger.ownerId === member.id || (!!member.uid && ledger.ownerId === member.uid)
+}
 export function useLedger() {
   const [myLedgers, setMyLedgers] = useState<Ledger[]>([])
   const [current, setCurrent] = useState<LedgerView | null>(null)
-  const [demoOn, setDemoOn] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const identityRef = useRef<Record<string, IdentityRecord>>(loadIdentity())
-  const currentRef = useRef<LedgerView | null>(null)
-  const demoOnRef = useRef(false)
-  const demoMemberRef = useRef<Member | null>(null)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  currentRef.current = current
-  demoOnRef.current = demoOn
   // 刷新“我参与的所有账本”
   const refreshMyLedgers = useCallback(async () => {
     const ids = Object.keys(identityRef.current)
@@ -103,39 +87,6 @@ export function useLedger() {
   useEffect(() => {
     void refreshMyLedgers()
   }, [refreshMyLedgers])
-  // 演示模式定时器
-  useEffect(() => {
-    if (demoOn && current && !timerRef.current) {
-      // 确保演示同伴成员存在，并加入成员列表
-      const existing = current.members.find((m) => DEMO_NAMES.includes(m.nickname))
-      if (existing) {
-        demoMemberRef.current = existing
-      } else {
-        const demoMember: Member = {
-          id: `demo_${Date.now().toString(36)}`,
-          ledgerId: current.ledger.id,
-          nickname: DEMO_NAMES[0],
-          joinedAt: Date.now(),
-        }
-        demoMemberRef.current = demoMember
-        setCurrent({ ...current, members: [...current.members, demoMember] })
-      }
-      timerRef.current = setInterval(() => {
-        const view = currentRef.current
-        const dm = demoMemberRef.current
-        if (!view || !dm) return
-        const text = DEMO_SENTENCES[Math.floor(Math.random() * DEMO_SENTENCES.length)]
-        api.addEntry(view.ledger.id, dm.id, dm.nickname, text).catch(() => undefined)
-      }, 6000)
-    }
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoOn, current?.ledger.id])
   const createLedger = useCallback(
     async (name: string, nickname: string) => {
       const { ledger, member } = await api.createLedger(name, nickname)
@@ -184,7 +135,7 @@ export function useLedger() {
   )
   const assertOwner = useCallback(() => {
     if (!current) throw new Error('请先进入账本')
-    if (current.ledger.ownerId !== current.myMember.id) throw new Error('只有账本创建者可以操作')
+    if (!isOwnerOf(current.ledger, current.myMember)) throw new Error('只有账本创建者可以操作')
   }, [current])
   const renameLedger = useCallback(
     async (newName: string) => {
@@ -221,12 +172,11 @@ export function useLedger() {
     },
     [current, assertOwner],
   )
-  const toggleDemo = useCallback(() => setDemoOn((v) => !v), [])
   // 权限：本人可改删自己的；账本创建者可改删任何人的
   const canModify = useCallback(
     (entry: Entry): boolean => {
       if (!current) return false
-      return entry.memberId === current.myMember.id || current.ledger.ownerId === current.myMember.id
+      return entry.memberId === current.myMember.id || isOwnerOf(current.ledger, current.myMember)
     },
     [current],
   )
@@ -234,7 +184,6 @@ export function useLedger() {
   return {
     myLedgers,
     current,
-    demoOn,
     error,
     createLedger,
     joinLedger,
@@ -247,7 +196,6 @@ export function useLedger() {
     removeMember,
     regenerateInviteCode,
     updateCategories,
-    toggleDemo,
     canModify,
     clearError,
     setError,

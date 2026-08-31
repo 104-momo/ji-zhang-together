@@ -10,11 +10,9 @@ import { createInviteLink } from '../services/mock'
 import type { LedgerView } from '../store/useLedger'
 interface Props {
   view: LedgerView
-  demoOn: boolean
   onAddEntry: (text: string) => Promise<Entry>
   onUpdateEntry: (entryId: string, patch: { amount?: number; category?: Category; note?: string }) => Promise<Entry>
   onDeleteEntry: (entryId: string) => Promise<void>
-  onToggleDemo: () => void
   onBack: () => void
   onOpenStats: () => void
   onRename: (name: string) => Promise<void>
@@ -24,11 +22,9 @@ interface Props {
 }
 export default function LedgerPage({
   view,
-  demoOn,
   onAddEntry,
   onUpdateEntry,
   onDeleteEntry,
-  onToggleDemo,
   onBack,
   onOpenStats,
   onRename,
@@ -40,7 +36,8 @@ export default function LedgerPage({
   const [toast, setToast] = useState<string | null>(null)
   const [manageOpen, setManageOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
-  const isOwner = ledger.ownerId === myMember.id
+  // 兼容判断创建者：CloudBase 模式 ledger.ownerId 是 uid，与 myMember.uid 对应；mock 模式 ownerId 是 member.id
+  const isOwner = ledger.ownerId === myMember.id || (!!myMember.uid && ledger.ownerId === myMember.uid)
   useEffect(() => {
     const el = listRef.current
     if (el) el.scrollTop = el.scrollHeight
@@ -95,12 +92,6 @@ export default function LedgerPage({
             />
           ))
         )}
-      </div>
-      <div className="demo-bar">
-        <label className="demo-label">
-          <input type="checkbox" checked={demoOn} onChange={onToggleDemo} />
-          演示模式：模拟其他成员实时记账（每 6 秒一笔）
-        </label>
       </div>
       <EntryInput onSend={handleAdd} disabled={false} />
       {toast ? <div className="toast">{toast}</div> : null}
