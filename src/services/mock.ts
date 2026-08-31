@@ -134,6 +134,14 @@ export const mockAPI: LedgerAPI = {
     const all = load<Member>(K_MEMBERS)
     save<Member>(K_MEMBERS, all.filter((m) => !(m.ledgerId === ledgerId && m.id === memberId)))
   },
+  async updateNickname(ledgerId, nickname, memberId) {
+    const all = load<Member>(K_MEMBERS)
+    const member = all.find((m) => m.ledgerId === ledgerId && m.id === memberId)
+    if (!member) throw new Error('成员不存在')
+    member.nickname = nickname.trim() || member.nickname
+    save<Member>(K_MEMBERS, all)
+    return member
+  },
   async regenerateInviteCode(ledgerId) {
     const all = load<Ledger>(K_LEDGERS)
     const ledger = all.find((l) => l.id === ledgerId)

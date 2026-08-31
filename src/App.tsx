@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLedger } from './store/useLedger'
 import { auth, type AuthUser } from './services/auth'
 import HomePage from './components/HomePage'
@@ -30,12 +30,13 @@ export default function App() {
     deleteEntry,
     renameLedger,
     removeMember,
+    updateNickname,
     regenerateInviteCode,
     updateCategories,
     clearError,
     setError,
   } = useLedger()
-  const join = useMemo(parseJoinParams, [])
+  const [join, setJoin] = useState<JoinParams | null>(parseJoinParams)
   const [user, setUser] = useState<AuthUser | null>(() => auth.getCurrentUser())
   const [showStats, setShowStats] = useState(false)
   // 监听登录态变化
@@ -54,21 +55,24 @@ export default function App() {
   useEffect(() => {
     if (user && join && !current) {
       const nickname = user.nickname || user.email?.split('@')[0] || '我'
-      joinLedger(join.ledgerId, join.code, nickname).catch((e) => {
-        console.error('[自动加入账本失败(useEffect)]', e)
-        setError(e instanceof Error ? e.message : '加入失败')
-      })
+      joinLedger(join.ledgerId, join.code, nickname)
+        .then(() => setJoin(null))
+        .catch((e) => {
+          console.error('[自动加入账本失败(useEffect)]', e)
+          setError(e instanceof Error ? e.message : '加入失败')
+        })
     }
   }, [user, join, current, joinLedger, setError])
-  // 登录后清理 URL 上的 join 参数（加入成功后由 useLedger 处理）
+  // 进入账本后清理 URL 上的 join 参数，避免刷新/返回时反复自动加入
   useEffect(() => {
-    if (current && join) {
-      const url = new URL(location.href)
+    if (!current) return
+    const url = new URL(location.href)
+    if (url.searchParams.has('join') || url.searchParams.has('code')) {
       url.searchParams.delete('join')
       url.searchParams.delete('code')
       history.replaceState(null, '', url)
     }
-  }, [current, join])
+  }, [current])
   // 切换账本时关闭统计页
   useEffect(() => {
     if (!current) setShowStats(false)
@@ -93,6 +97,7 @@ export default function App() {
       const nickname = u.nickname || u.email?.split('@')[0] || '我'
       try {
         await joinLedger(join.ledgerId, join.code, nickname)
+        setJoin(null)
       } catch (e) {
         console.error('[自动加入账本失败]', e)
         setError(e instanceof Error ? e.message : '加入失败')
@@ -110,6 +115,10 @@ export default function App() {
   const handleRegenerate = async () => {
     if (!current) return
     await regenerateInviteCode()
+  }
+  const handleUpdateNickname = async (nickname: string) => {
+    if (!current) return
+    await updateNickname(nickname)
   }
   const handleUpdateCats = async (cats: string[]) => {
     if (!current) return
@@ -143,6 +152,7 @@ export default function App() {
         onOpenStats={() => setShowStats(true)}
         onRename={handleRename}
         onRemoveMember={handleRemoveMember}
+        onUpdateNickname={handleUpdateNickname}
         onRegenerateInvite={handleRegenerate}
         onUpdateCategories={handleUpdateCats}
       />

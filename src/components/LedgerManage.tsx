@@ -9,6 +9,7 @@ interface Props {
   isOwner: boolean
   onRename: (name: string) => Promise<void>
   onRemoveMember: (memberId: string) => Promise<void>
+  onUpdateNickname: (nickname: string) => Promise<void>
   onRegenerateInvite: () => Promise<void>
   onUpdateCategories: (categories: string[]) => Promise<void>
   onClose: () => void
@@ -20,6 +21,7 @@ export default function LedgerManage({
   isOwner,
   onRename,
   onRemoveMember,
+  onUpdateNickname,
   onRegenerateInvite,
   onUpdateCategories,
   onClose,
@@ -27,6 +29,7 @@ export default function LedgerManage({
   const [name, setName] = useState(ledger.name)
   const [cats, setCats] = useState<string[]>(ledger.categories?.length ? ledger.categories : [...CATEGORIES])
   const [newCat, setNewCat] = useState('')
+  const [myNick, setMyNick] = useState(() => members.find((m) => m.id === myMemberId)?.nickname || '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const showMsg = (m: string) => {
@@ -68,6 +71,17 @@ export default function LedgerManage({
     }
     setBusy(false)
   }
+  const handleUpdateNickname = async () => {
+    if (!myNick.trim() || busy) return
+    setBusy(true)
+    try {
+      await onUpdateNickname(myNick.trim())
+      showMsg('昵称已更新')
+    } catch (e) {
+      showMsg(e instanceof Error ? e.message : '操作失败')
+    }
+    setBusy(false)
+  }
   const addCat = () => {
     const c = newCat.trim()
     if (!c || cats.includes(c)) return
@@ -98,6 +112,13 @@ export default function LedgerManage({
           </button>
         </div>
         <div className="modal-body">
+          <div className="manage-section">
+            <div className="manage-title">我的昵称（在这本账里显示的名字）</div>
+            <div className="manage-row">
+              <input className="manage-input" value={myNick} onChange={(e) => setMyNick(e.target.value)} placeholder="你的昵称" />
+              <button className="btn-primary btn-sm" onClick={handleUpdateNickname} disabled={busy}>保存</button>
+            </div>
+          </div>
           {!isOwner ? (
             <div className="manage-notice">只有账本创建者可以管理此账本</div>
           ) : (
@@ -117,13 +138,13 @@ export default function LedgerManage({
                       <span className="member-name">
                         {m.nickname}
                         {m.id === myMemberId ? '（我）' : ''}
-                        {m.id === ledger.ownerId ? (
+                        {m.uid ? m.uid === ledger.ownerId : m.id === ledger.ownerId ? (
                           <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-soft)', padding: '1px 7px', borderRadius: 999 }}>
                             创建者
                           </span>
                         ) : null}
                       </span>
-                      {m.id !== myMemberId && m.id !== ledger.ownerId ? (
+                      {m.id !== myMemberId && !(m.uid ? m.uid === ledger.ownerId : m.id === ledger.ownerId) ? (
                         <button className="btn-danger btn-sm" onClick={() => handleRemove(m.id)} disabled={busy}>移除</button>
                       ) : null}
                     </div>

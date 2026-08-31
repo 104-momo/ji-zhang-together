@@ -17,6 +17,7 @@ interface Props {
   onOpenStats: () => void
   onRename: (name: string) => Promise<void>
   onRemoveMember: (memberId: string) => Promise<void>
+  onUpdateNickname: (nickname: string) => Promise<void>
   onRegenerateInvite: () => Promise<void>
   onUpdateCategories: (categories: string[]) => Promise<void>
 }
@@ -29,6 +30,7 @@ export default function LedgerPage({
   onOpenStats,
   onRename,
   onRemoveMember,
+  onUpdateNickname,
   onRegenerateInvite,
   onUpdateCategories,
 }: Props) {
@@ -103,6 +105,7 @@ export default function LedgerPage({
           isOwner={isOwner}
           onRename={onRename}
           onRemoveMember={onRemoveMember}
+          onUpdateNickname={onUpdateNickname}
           onRegenerateInvite={onRegenerateInvite}
           onUpdateCategories={onUpdateCategories}
           onClose={() => setManageOpen(false)}

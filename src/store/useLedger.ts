@@ -157,6 +157,29 @@ export function useLedger() {
     },
     [current, assertOwner],
   )
+  const updateNickname = useCallback(
+    async (nickname: string) => {
+      if (!current) throw new Error('请先进入账本')
+      const member = await api.updateNickname(current.ledger.id, nickname, current.myMember.id)
+      // 同步本地身份（localStorage）与当前视图
+      identityRef.current = {
+        ...identityRef.current,
+        [current.ledger.id]: { memberId: member.id, nickname: member.nickname },
+      }
+      saveIdentity(identityRef.current)
+      setCurrent((c) =>
+        c
+          ? {
+              ...c,
+              myMember: member,
+              members: c.members.map((m) => (m.id === member.id ? member : m)),
+            }
+          : c,
+      )
+      return member
+    },
+    [current],
+  )
   const regenerateInviteCode = useCallback(async () => {
     if (!current) return
     assertOwner()
@@ -194,6 +217,7 @@ export function useLedger() {
     deleteEntry,
     renameLedger,
     removeMember,
+    updateNickname,
     regenerateInviteCode,
     updateCategories,
     canModify,

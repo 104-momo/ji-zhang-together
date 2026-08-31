@@ -94,6 +94,10 @@ export const cloudAPI: LedgerAPI = {
   async removeMember(ledgerId, memberId) {
     await call('removeMember', { ledgerId, memberId })
   },
+  async updateNickname(ledgerId, nickname) {
+    const data = await call('updateNickname', { ledgerId, nickname })
+    return mapMember(data)
+  },
   async regenerateInviteCode(ledgerId) {
     const data = await call('regenerateInviteCode', { ledgerId })
     const ledger = mapLedger(data.ledger)

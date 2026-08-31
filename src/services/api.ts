@@ -23,6 +23,8 @@ export interface LedgerAPI {
     nickname: string,
   ): Promise<Entry>
   deleteEntry(entryId: string, memberId: string, nickname: string): Promise<void>
+  /** 修改自己在本账本中的昵称（mock 模式用 memberId 定位，CloudBase 从登录态取） */
+  updateNickname(ledgerId: string, nickname: string, memberId?: string): Promise<Member>
   /** 账本管理（仅创建者可调用） */
   renameLedger(ledgerId: string, newName: string): Promise<Ledger>
   removeMember(ledgerId: string, memberId: string): Promise<void>
