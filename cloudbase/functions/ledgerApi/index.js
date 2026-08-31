@@ -37,6 +37,7 @@ function executePGSql(sql) {
     const timestamp = Math.floor(Date.now() / 1000)
     const date = new Date(timestamp * 1000).toISOString().slice(0, 10)
     const payload = JSON.stringify({ EnvId: ENV_ID, Sql: sql })
+    // TC3-HMAC-SHA256 签名
     const canonicalHeaders = `content-type:application/json; charset=utf-8\nhost:${host}\nx-tc-action:${action.toLowerCase()}\n`
     const signedHeaders = 'content-type;host;x-tc-action'
     const hashedPayload = crypto.createHash('sha256').update(payload).digest('hex')
@@ -68,11 +69,13 @@ function executePGSql(sql) {
             reject(new Error(`ExecutePGSql 失败: ${parsed.Response.Error.Message}`))
             return
           }
+          // 解析 Rows：每个元素是 JSON 数组字符串，需要转换成对象
           const rowsRaw = (parsed.Response && parsed.Response.Rows) || []
           const columns = (parsed.Response && parsed.Response.Columns) || []
           const rows = rowsRaw.map((r) => {
             try {
               const arr = JSON.parse(r)
+              // 如果是数组且有 columns，转换成对象
               if (Array.isArray(arr) && columns.length > 0) {
                 const obj = {}
                 columns.forEach((col, i) => { obj[col] = arr[i] })
@@ -111,6 +114,8 @@ function pgTimeToMs(v) {
   if (typeof v === 'number') return v
   if (v instanceof Date) return v.getTime()
   const s = String(v).trim()
+  // 手动拆解，避免老版本 Node 解析 "6位微秒+时区偏移" 不一致：
+  // 形如 2026-08-31 14:04:56.826722 +0800 CST（结尾时区缩写忽略，只用数字偏移）
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:\s*([+-]\d{2}):?(\d{2}))?/)
   if (!m) {
     const t = Date.parse(s)
@@ -118,6 +123,7 @@ function pgTimeToMs(v) {
   }
   const Y = +m[1], Mo = +m[2], D = +m[3], H = +m[4], Mi = +m[5], Se = +m[6]
   const frac = m[7] ? Number(m[7].slice(0, 3).padEnd(3, '0')) : 0
+  // 先按 UTC 构造该“墙上时间”，再减去数字偏移得到真正的 UTC 时刻
   let ms = Date.UTC(Y, Mo - 1, D, H, Mi, Se, frac)
   if (m[8] !== undefined) {
     const sign = m[8].startsWith('-') ? -1 : 1
@@ -126,6 +132,9 @@ function pgTimeToMs(v) {
   }
   return ms
 }
+// ============================================================
+// 行转换：PostgreSQL 字段 → 前端期望的 camelCase
+// ============================================================
 function rowToLedger(r) {
   if (!r) return null
   return {
@@ -154,7 +163,8 @@ function rowToEntry(r) {
   return {
     id: r.id,
     ledgerId: r.ledger_id,
-    memberId: r.member_id,
+    // 优先用 JOIN 解析出的 members.id（PG 主键），兼容老数据 member_id 误存 uid 的情况
+    memberId: r.resolved_member_id || r.member_id,
     uid: r.uid,
     nickname: r.nickname || '我',
     rawText: r.text,
@@ -169,7 +179,12 @@ function rowToEntry(r) {
     deleted: r.deleted === true || r.deleted === 'true',
   }
 }
+// ============================================================
+// 身份
+// ============================================================
 function getUid(context) {
+  // 临时方案：从 context._uid 获取用户 ID（由入口函数注入）
+  // 后续优化：验证 accessToken 获取 uid
   const uid = context && context._uid
   if (!uid) throw new Error('请先登录')
   return uid
@@ -188,6 +203,9 @@ async function assertOwner(ledgerId, uid) {
   if (ledger.ownerId !== uid) throw new Error('只有账本创建者可以操作')
   return ledger
 }
+// ============================================================
+// 规则解析引擎（与前端保持一致）
+// ============================================================
 const KEYWORDS = [
   ['医疗', ['药', '医院', '看病', '体检', '挂号', '诊所', '牙科', '打针', '输液']],
   ['居住', ['房租', '电费', '水费', '燃气', '物业', '宽带', '话费', '房贷']],
@@ -293,52 +311,72 @@ async function parseEntry(text, categories) {
     matchedBy: 'fallback',
   }
 }
+// ============================================================
+// 工具函数
+// ============================================================
 function genInviteCode() {
   return Math.random().toString(36).slice(2, 8).toUpperCase()
 }
+// ============================================================
+// Action Handlers
+// ============================================================
 const handlers = {
+  // —— 创建账本 ——
   async createLedger({ name, nickname }, context) {
     const uid = getUid(context)
     const ledgerName = (name || '').trim() || '我的账本'
     const memberName = (nickname || '').trim() || '我'
     const inviteCode = genInviteCode()
+    // 1. 创建账本
     await executePGSql(`INSERT INTO ledgers (name, owner_id, invite_code) VALUES (${esc(ledgerName)}, ${esc(uid)}, ${esc(inviteCode)})`)
     const ledgerRows = await executePGSql(`SELECT * FROM ledgers WHERE invite_code = ${esc(inviteCode)} ORDER BY created_at DESC LIMIT 1`)
+    console.log('[createLedger] ledgerRows:', JSON.stringify(ledgerRows))
     const ledger = rowToLedger(ledgerRows[0])
+    console.log('[createLedger] ledger:', JSON.stringify(ledger))
+    // 2. 创建成员记录（role = owner）
     await executePGSql(`INSERT INTO members (ledger_id, uid, name, role) VALUES (${esc(ledger.id)}, ${esc(uid)}, ${esc(memberName)}, 'owner')`)
     const memberRows = await executePGSql(`SELECT * FROM members WHERE ledger_id = ${esc(ledger.id)} AND uid = ${esc(uid)} LIMIT 1`)
     const member = rowToMember(memberRows[0])
     return { ledger, member }
   },
+  // —— 加入账本 ——
   async joinLedger({ ledgerId, inviteCode, nickname }, context) {
     const uid = getUid(context)
     const ledger = await getLedgerDoc(ledgerId)
     if (!ledger) throw new Error('账本不存在')
     if (ledger.inviteCode !== inviteCode) throw new Error('邀请码无效')
+    // 防止重复加入
     const existing = await getMyMember(ledgerId, uid)
-    if (existing) return { ledger, member: existing }
+    if (existing) {
+      return { ledger, member: existing }
+    }
     const memberName = (nickname || '').trim() || '我'
     await executePGSql(`INSERT INTO members (ledger_id, uid, name, role) VALUES (${esc(ledgerId)}, ${esc(uid)}, ${esc(memberName)}, 'member')`)
     const memberRows = await executePGSql(`SELECT * FROM members WHERE ledger_id = ${esc(ledgerId)} AND uid = ${esc(uid)} LIMIT 1`)
     const member = rowToMember(memberRows[0])
     return { ledger, member }
   },
+  // —— 查单个账本 ——
   async getLedger({ id }) {
     return await getLedgerDoc(id)
   },
+  // —— 按 id 列表批量查账本 ——
   async getLedgersByIds({ ids }) {
     if (!ids || ids.length === 0) return []
     const idList = ids.map(esc).join(', ')
     const rows = await executePGSql(`SELECT * FROM ledgers WHERE id IN (${idList})`)
     return rows.map(rowToLedger)
   },
+  // —— 列出成员 ——
   async listMembers({ ledgerId }) {
     const rows = await executePGSql(`SELECT * FROM members WHERE ledger_id = ${esc(ledgerId)} ORDER BY joined_at ASC`)
     return rows.map(rowToMember)
   },
+  // —— 列出账目 ——
   async listEntries({ ledgerId }) {
+    // 关联 members 表获取昵称 + 解析真正的成员 id（members.id，PG 主键）
     const rows = await executePGSql(`
-      SELECT e.*, m.name as nickname
+      SELECT e.*, m.id as resolved_member_id, m.name as nickname
       FROM entries e
       LEFT JOIN members m ON m.ledger_id = e.ledger_id AND m.uid = e.uid
       WHERE e.ledger_id = ${esc(ledgerId)}
@@ -346,22 +384,25 @@ const handlers = {
     `)
     return rows.map(rowToEntry)
   },
+  // —— 记账 ——
   async addEntry({ ledgerId, text, nickname }, context) {
     const uid = getUid(context)
     const ledger = await getLedgerDoc(ledgerId)
     if (!ledger) throw new Error('账本不存在')
+    // 确认是本账本成员
     const myMember = await getMyMember(ledgerId, uid)
     if (!myMember) throw new Error('你还没有加入这个账本')
     const parsed = await parseEntry(text, ledger.categories)
     if (!parsed) throw new Error('没识别出这笔账的金额，换种说法试试？')
     const entryNickname = nickname || myMember.nickname || '我'
     const rawText = (text || '').trim()
+    // member_id 存 members.id（PG 主键），与前端 myMember.id 对应；uid 单独存登录用户 uid 用于服务端权限校验
     await executePGSql(`
       INSERT INTO entries (ledger_id, member_id, uid, text, amount, category, description, note)
-      VALUES (${esc(ledgerId)}, ${esc(uid)}, ${esc(uid)}, ${esc(rawText)}, ${parsed.amount}, ${esc(parsed.category)}, ${esc(parsed.description)}, ${esc(parsed.note || null)})
+      VALUES (${esc(ledgerId)}, ${esc(myMember.id)}, ${esc(uid)}, ${esc(rawText)}, ${parsed.amount}, ${esc(parsed.category)}, ${esc(parsed.description)}, ${esc(parsed.note || null)})
     `)
     const entryRows = await executePGSql(`
-      SELECT e.*, m.name as nickname
+      SELECT e.*, m.id as resolved_member_id, m.name as nickname
       FROM entries e
       LEFT JOIN members m ON m.ledger_id = e.ledger_id AND m.uid = e.uid
       WHERE e.ledger_id = ${esc(ledgerId)} AND e.uid = ${esc(uid)}
@@ -369,6 +410,7 @@ const handlers = {
     `)
     return rowToEntry(entryRows[0])
   },
+  // —— 修改账目（本人或创建者） ——
   async updateEntry({ entryId, patch }, context) {
     const uid = getUid(context)
     const entryRows = await executePGSql(`SELECT * FROM entries WHERE id = ${esc(entryId)} LIMIT 1`)
@@ -376,7 +418,11 @@ const handlers = {
     if (!entry) throw new Error('账目不存在')
     const ledger = await getLedgerDoc(entry.ledgerId)
     if (!ledger) throw new Error('账本不存在')
-    if (entry.memberId !== uid && ledger.ownerId !== uid) throw new Error('只能修改自己的账')
+    // 权限：本人（uid = 登录用户）或创建者（ownerId = uid）
+    // 注意：memberId 是 members.id（PG 主键），权限判断必须用 uid 字段
+    if (entry.uid !== uid && ledger.ownerId !== uid) {
+      throw new Error('只能修改自己的账')
+    }
     const myMember = await getMyMember(entry.ledgerId, uid)
     const operatorNickname = myMember ? myMember.nickname : '我'
     const sets = []
@@ -386,19 +432,21 @@ const handlers = {
     if (patch.description !== undefined) sets.push(`description = ${esc(patch.description)}`)
     if (patch.rawText !== undefined) sets.push(`text = ${esc(patch.rawText)}`)
     sets.push(`updated_at = NOW()`)
+    // 历史记录（简化：追加到 history JSON 数组）
     const historyEntry = { uid, nickname: operatorNickname, at: Date.now(), action: '修改' }
     const currentHistory = entry.history || []
     currentHistory.push(historyEntry)
     sets.push(`history = ${esc(JSON.stringify(currentHistory))}`)
     await executePGSql(`UPDATE entries SET ${sets.join(', ')} WHERE id = ${esc(entryId)}`)
     const updatedRows = await executePGSql(`
-      SELECT e.*, m.name as nickname
+      SELECT e.*, m.id as resolved_member_id, m.name as nickname
       FROM entries e
       LEFT JOIN members m ON m.ledger_id = e.ledger_id AND m.uid = e.uid
       WHERE e.id = ${esc(entryId)} LIMIT 1
     `)
     return rowToEntry(updatedRows[0])
   },
+  // —— 删除账目（软删除，本人或创建者） ——
   async deleteEntry({ entryId }, context) {
     const uid = getUid(context)
     const entryRows = await executePGSql(`SELECT * FROM entries WHERE id = ${esc(entryId)} LIMIT 1`)
@@ -406,7 +454,10 @@ const handlers = {
     if (!entry) throw new Error('账目不存在')
     const ledger = await getLedgerDoc(entry.ledgerId)
     if (!ledger) throw new Error('账本不存在')
-    if (entry.memberId !== uid && ledger.ownerId !== uid) throw new Error('只能删除自己的账')
+    // 权限：本人（uid = 登录用户）或创建者（ownerId = uid）
+    if (entry.uid !== uid && ledger.ownerId !== uid) {
+      throw new Error('只能删除自己的账')
+    }
     const myMember = await getMyMember(entry.ledgerId, uid)
     const operatorNickname = myMember ? myMember.nickname : '我'
     const historyEntry = { uid, nickname: operatorNickname, at: Date.now(), action: '删除' }
@@ -417,6 +468,7 @@ const handlers = {
       WHERE id = ${esc(entryId)}
     `)
   },
+  // —— 改账本名（仅创建者） ——
   async renameLedger({ ledgerId, newName }, context) {
     const uid = getUid(context)
     await assertOwner(ledgerId, uid)
@@ -425,6 +477,7 @@ const handlers = {
     await executePGSql(`UPDATE ledgers SET name = ${esc(name)}, updated_at = NOW() WHERE id = ${esc(ledgerId)}`)
     return await getLedgerDoc(ledgerId)
   },
+  // —— 移除成员（仅创建者） ——
   async removeMember({ ledgerId, memberId }, context) {
     const uid = getUid(context)
     await assertOwner(ledgerId, uid)
@@ -434,6 +487,7 @@ const handlers = {
     if (member.uid === uid) throw new Error('不能移除自己')
     await executePGSql(`DELETE FROM members WHERE id = ${esc(memberId)}`)
   },
+  // —— 重新生成邀请码（仅创建者） ——
   async regenerateInviteCode({ ledgerId }, context) {
     const uid = getUid(context)
     await assertOwner(ledgerId, uid)
@@ -442,6 +496,7 @@ const handlers = {
     const ledger = await getLedgerDoc(ledgerId)
     return { ledger }
   },
+  // —— 更新分类（仅创建者） ——
   async updateCategories({ ledgerId, categories }, context) {
     const uid = getUid(context)
     await assertOwner(ledgerId, uid)
@@ -449,6 +504,7 @@ const handlers = {
     await executePGSql(`UPDATE ledgers SET categories = ${esc(cats ? JSON.stringify(cats) : null)}, updated_at = NOW() WHERE id = ${esc(ledgerId)}`)
     return await getLedgerDoc(ledgerId)
   },
+  // —— 测试数据库连接 ——
   async testDb() {
     const envInfo = {
       ENV_ID,
@@ -467,6 +523,9 @@ const handlers = {
     }
   },
 }
+// ============================================================
+// 云函数入口
+// ============================================================
 exports.main = async (event, context) => {
   const { action, _uid, ...params } = event || {}
   const handler = handlers[action]
@@ -474,6 +533,7 @@ exports.main = async (event, context) => {
     return { success: false, error: `未知 action: ${action}` }
   }
   try {
+    // 把 _uid 注入到 context 中，让 handler 可以通过 getUid(context) 获取
     const contextWithUid = { ...context, _uid }
     const data = await handler(params, contextWithUid)
     return { success: true, data }
