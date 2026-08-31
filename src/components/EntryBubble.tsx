@@ -3,14 +3,17 @@ import type { Category, Entry } from '../types'
 import { CATEGORIES } from '../types'
 import { CATEGORY_COLOR_VAR, avatarColor } from '../utils/colors'
 import { IconPencil, IconTrash } from './Icons'
+
 function fmtTime(ts: number): string {
   const d = new Date(ts)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
+
 function isDeleted(e: Entry): boolean {
   return e.amount === 0 && (e.note || '').includes('【已删除】')
 }
+
 interface Props {
   entry: Entry
   myMemberId: string
@@ -18,27 +21,44 @@ interface Props {
   onUpdate: (entryId: string, patch: { amount?: number; category?: Category; note?: string }) => void
   onDelete: (entryId: string) => void
 }
+
 export default function EntryBubble({ entry, myMemberId, isOwner, onUpdate, onDelete }: Props) {
   const [editing, setEditing] = useState(false)
   const [amount, setAmount] = useState(String(entry.amount))
   const [category, setCategory] = useState<Category>(entry.category)
   const [note, setNote] = useState(entry.note ?? '')
   const panelRef = useRef<HTMLDivElement>(null)
+
+  // 每次打开编辑面板时，用当前最新 entry 重置编辑状态。
+  // 组件复用（key 不变）时 useState 不会自动跟随 props 更新，
+  // 否则记录被修改/轮询刷新后，编辑面板会停留在旧值。
+  useEffect(() => {
+    if (editing) {
+      setAmount(String(entry.amount))
+      setCategory(entry.category)
+      setNote(entry.note ?? '')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing])
+
   useEffect(() => {
     if (editing && panelRef.current) {
       panelRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     }
   }, [editing])
+
   const mine = entry.memberId === myMemberId
   const canEdit = mine || isOwner
   const deleted = isDeleted(entry)
   const lastHistory = entry.history.length > 0 ? entry.history[entry.history.length - 1] : null
+
   const save = () => {
     const amt = parseFloat(amount)
     if (!Number.isFinite(amt) || amt <= 0) return
     onUpdate(entry.id, { amount: amt, category, note: note.trim() || undefined })
     setEditing(false)
   }
+
   if (deleted) {
     return (
       <div className="bubble-row">
@@ -52,6 +72,7 @@ export default function EntryBubble({ entry, myMemberId, isOwner, onUpdate, onDe
       </div>
     )
   }
+
   return (
     <div className={`bubble-row ${mine ? 'mine' : ''}`}>
       {!mine ? (
