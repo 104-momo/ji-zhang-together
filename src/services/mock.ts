@@ -134,6 +134,12 @@ export const mockAPI: LedgerAPI = {
     const all = load<Member>(K_MEMBERS)
     save<Member>(K_MEMBERS, all.filter((m) => !(m.ledgerId === ledgerId && m.id === memberId)))
   },
+  async deleteLedger(ledgerId) {
+    save<Ledger>(K_LEDGERS, load<Ledger>(K_LEDGERS).filter((l) => l.id !== ledgerId))
+    save<Member>(K_MEMBERS, load<Member>(K_MEMBERS).filter((m) => m.ledgerId !== ledgerId))
+    save<Entry>(K_ENTRIES, load<Entry>(K_ENTRIES).filter((e) => e.ledgerId !== ledgerId))
+    delete listeners[ledgerId]
+  },
   async updateNickname(ledgerId, nickname, memberId) {
     const all = load<Member>(K_MEMBERS)
     const member = all.find((m) => m.ledgerId === ledgerId && m.id === memberId)

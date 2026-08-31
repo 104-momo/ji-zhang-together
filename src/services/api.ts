@@ -28,6 +28,8 @@ export interface LedgerAPI {
   /** 账本管理（仅创建者可调用） */
   renameLedger(ledgerId: string, newName: string): Promise<Ledger>
   removeMember(ledgerId: string, memberId: string): Promise<void>
+  /** 删除账本（仅创建者，级联删除账目与成员） */
+  deleteLedger(ledgerId: string): Promise<void>
   regenerateInviteCode(ledgerId: string): Promise<{ ledger: Ledger; inviteLink: string }>
   updateCategories(ledgerId: string, categories: string[]): Promise<Ledger>
   /** 订阅账本实时变化（CloudBase watch / mock 事件），返回取消订阅函数 */
