@@ -515,6 +515,76 @@ const handlers = {
     await executePGSql(`UPDATE ledgers SET categories = ${esc(cats ? JSON.stringify(cats) : null)}, updated_at = NOW() WHERE id = ${esc(ledgerId)}`)
     return await getLedgerDoc(ledgerId)
   },
+  // —— 初始化/修复数据库表结构（幂等，可反复执行） ——
+  async initSchema() {
+    const statements = [
+      // 账本表
+      `CREATE TABLE IF NOT EXISTS ledgers (
+        id BIGSERIAL PRIMARY KEY,
+        name text NOT NULL DEFAULT '我的账本',
+        owner_id text NOT NULL,
+        invite_code text NOT NULL,
+        categories jsonb,
+        created_at timestamptz DEFAULT now(),
+        updated_at timestamptz DEFAULT now()
+      )`,
+      // 成员表
+      `CREATE TABLE IF NOT EXISTS members (
+        id BIGSERIAL PRIMARY KEY,
+        ledger_id bigint NOT NULL,
+        uid text NOT NULL,
+        name text NOT NULL,
+        role text DEFAULT 'member',
+        joined_at timestamptz DEFAULT now()
+      )`,
+      // 账目表（含软删除 deleted、历史 history 等）
+      `CREATE TABLE IF NOT EXISTS entries (
+        id BIGSERIAL PRIMARY KEY,
+        ledger_id bigint NOT NULL,
+        member_id bigint,
+        uid text NOT NULL,
+        text text NOT NULL,
+        amount numeric(12,2) NOT NULL DEFAULT 0,
+        category text DEFAULT '其他',
+        description text DEFAULT '',
+        note text,
+        entry_date date,
+        created_at timestamptz DEFAULT now(),
+        updated_at timestamptz DEFAULT now(),
+        history jsonb DEFAULT '[]'::jsonb,
+        deleted boolean DEFAULT false
+      )`,
+      // 补齐可能缺失的列（幂等）
+      `ALTER TABLE ledgers ADD COLUMN IF NOT EXISTS categories jsonb`,
+      `ALTER TABLE ledgers ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now()`,
+      `ALTER TABLE members ADD COLUMN IF NOT EXISTS role text DEFAULT 'member'`,
+      `ALTER TABLE members ADD COLUMN IF NOT EXISTS joined_at timestamptz DEFAULT now()`,
+      `ALTER TABLE entries ADD COLUMN IF NOT EXISTS member_id bigint`,
+      `ALTER TABLE entries ADD COLUMN IF NOT EXISTS uid text`,
+      `ALTER TABLE entries ADD COLUMN IF NOT EXISTS note text`,
+      `ALTER TABLE entries ADD COLUMN IF NOT EXISTS entry_date date`,
+      `ALTER TABLE entries ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now()`,
+      `ALTER TABLE entries ADD COLUMN IF NOT EXISTS history jsonb DEFAULT '[]'::jsonb`,
+      `ALTER TABLE entries ADD COLUMN IF NOT EXISTS deleted boolean DEFAULT false`,
+      `ALTER TABLE entries ADD COLUMN IF NOT EXISTS amount numeric(12,2) NOT NULL DEFAULT 0`,
+      `ALTER TABLE entries ADD COLUMN IF NOT EXISTS category text DEFAULT '其他'`,
+      `ALTER TABLE entries ADD COLUMN IF NOT EXISTS description text DEFAULT ''`,
+    ]
+    const results = []
+    for (const sql of statements) {
+      try {
+        await executePGSql(sql)
+        results.push({ sql: sql.slice(0, 50), ok: true })
+      } catch (e) {
+        results.push({ sql: sql.slice(0, 50), ok: false, error: e.message })
+      }
+    }
+    // 返回当前 entries 表结构，便于确认补列结果
+    const cols = await executePGSql(
+      `SELECT column_name, data_type, column_default FROM information_schema.columns WHERE table_name = 'entries' ORDER BY ordinal_position`
+    )
+    return { results, entriesColumns: cols }
+  },
   // —— 测试数据库连接 ——
   async testDb() {
     const envInfo = {
