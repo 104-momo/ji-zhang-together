@@ -1,0 +1,23 @@
+{
+  "envId": "jizhang-together-d9es2tka134439b",
+  "region": "ap-shanghai",
+  "functionRoot": "cloudbase/functions",
+  "functions": [
+    {
+      "name": "ledgerApi",
+      "timeout": 10,
+      "envVariables": {},
+      "runtime": "Nodejs16.13",
+      "handler": "index.main"
+    }
+  ],
+  "hosting": {
+    "ignore": [
+      "node_modules/**",
+      "cloudbase/**",
+      "scripts/**",
+      "src/**",
+      ".git/**"
+    ]
+  }
+}
