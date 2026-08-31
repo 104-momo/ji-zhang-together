@@ -12,6 +12,7 @@ interface Props {
   onUpdateNickname: (nickname: string) => Promise<void>
   onRegenerateInvite: () => Promise<void>
   onUpdateCategories: (categories: string[]) => Promise<void>
+  onDeleteLedger: () => Promise<void>
   onClose: () => void
 }
 export default function LedgerManage({
@@ -24,6 +25,7 @@ export default function LedgerManage({
   onUpdateNickname,
   onRegenerateInvite,
   onUpdateCategories,
+  onDeleteLedger,
   onClose,
 }: Props) {
   const [name, setName] = useState(ledger.name)
@@ -97,6 +99,18 @@ export default function LedgerManage({
     try {
       await onUpdateCategories(cats)
       showMsg('分类已更新')
+    } catch (e) {
+      showMsg(e instanceof Error ? e.message : '操作失败')
+    }
+    setBusy(false)
+  }
+  const handleDeleteLedger = async () => {
+    if (busy) return
+    if (!confirm('删除账本将同时删除所有账目和成员记录，且不可恢复。确定删除这本账？')) return
+    setBusy(true)
+    try {
+      await onDeleteLedger()
+      onClose() // 删除成功后关闭弹窗（当前账本由 useLedger 切回首页）
     } catch (e) {
       showMsg(e instanceof Error ? e.message : '操作失败')
     }
@@ -181,6 +195,10 @@ export default function LedgerManage({
                   <button className="btn-primary btn-sm" onClick={addCat}>添加</button>
                 </div>
                 <button className="btn-primary btn-block" onClick={handleSaveCats} disabled={busy}>保存分类</button>
+              </div>
+              <div className="manage-section manage-danger">
+                <div className="manage-title">危险操作</div>
+                <button className="btn-danger btn-block" onClick={handleDeleteLedger} disabled={busy}>删除账本</button>
               </div>
             </>
           )}

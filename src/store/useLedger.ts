@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Category, Entry, Ledger, Member } from '../types'
 import { api } from '../services'
+import { parseEntryText } from '../parser'
 const K_IDENTITY = 'jz_identity' // Record<ledgerId, { memberId, nickname }>
 interface IdentityRecord {
   memberId: string
@@ -72,12 +73,22 @@ export function useLedger() {
       try {
         const [members, entries] = await Promise.all([api.listMembers(ledgerId), api.listEntries(ledgerId)])
         if (cancelled) return
-        setCurrent((c) => (c ? { ...c, members, entries } : c))
+        setCurrent((c) => {
+          if (!c) return c
+          // 保留尚未被云端确认的乐观占位（pending-*），避免被轮询结果覆盖导致气泡闪没；
+          // 若云端已出现同人同内容的真实记录，则丢弃对应占位，防止短暂重复
+          const pendings = c.entries.filter((e) => e.id.startsWith('pending-'))
+          const uniquePendings = pendings.filter(
+            (p) => !entries.some((en) => en.rawText === p.rawText && en.nickname === p.nickname && Math.abs(en.createdAt - p.createdAt) < 30000),
+          )
+          return { ...c, members, entries: [...uniquePendings, ...entries] }
+        })
       } catch {
         // 单次轮询失败静默处理，下一轮自动重试
       }
     }
-    const timer = setInterval(refresh, 4000)
+    // 2 秒轮询：本方记账会立即本地插入，轮询主要负责拉取对方的新账目
+    const timer = setInterval(refresh, 2000)
     return () => {
       cancelled = true
       clearInterval(timer)
@@ -115,7 +126,38 @@ export function useLedger() {
   const addEntry = useCallback(
     async (text: string) => {
       if (!current) throw new Error('请先进入账本')
-      return api.addEntry(current.ledger.id, current.myMember.id, current.myMember.nickname, text)
+      // 乐观更新：先用本地解析结果立即插入气泡，不等云端（云端 1~4s 后返回真实数据再替换）
+      const local = parseEntryText(text)
+      const optimistic: Entry = {
+        id: `pending-${Date.now()}`,
+        ledgerId: current.ledger.id,
+        memberId: current.myMember.id,
+        nickname: current.myMember.nickname,
+        rawText: text.trim(),
+        amount: local ? local.amount : 0,
+        category: (local ? local.category : '其他') as Category,
+        note: local?.note,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        history: [],
+      }
+      setCurrent((c) =>
+        c ? { ...c, entries: [...c.entries, optimistic].sort((a, b) => a.createdAt - b.createdAt) } : c,
+      )
+      try {
+        const entry = await api.addEntry(current.ledger.id, current.myMember.id, current.myMember.nickname, text)
+        // 云端确认成功：用真实 entry 替换占位（并去除可能已由轮询拉到的重复项）
+        setCurrent((c) =>
+          c
+            ? { ...c, entries: c.entries.filter((e) => e.id !== optimistic.id && e.id !== entry.id).concat(entry) }
+            : c,
+        )
+        return entry
+      } catch (e) {
+        // 失败：移除占位气泡并上抛错误（由页面 toast 提示）
+        setCurrent((c) => (c ? { ...c, entries: c.entries.filter((e) => e.id !== optimistic.id) } : c))
+        throw e
+      }
     },
     [current],
   )
@@ -186,6 +228,18 @@ export function useLedger() {
     const { ledger } = await api.regenerateInviteCode(current.ledger.id)
     setCurrent({ ...current, ledger })
   }, [current, assertOwner])
+  // 删除账本（仅创建者）：级联删除云端账目/成员，并清理本地身份记录回到首页
+  const deleteLedger = useCallback(async () => {
+    if (!current) return
+    assertOwner()
+    await api.deleteLedger(current.ledger.id)
+    const next = { ...identityRef.current }
+    delete next[current.ledger.id]
+    identityRef.current = next
+    saveIdentity(next)
+    setCurrent(null)
+    await refreshMyLedgers()
+  }, [current, assertOwner, refreshMyLedgers])
   const updateCategories = useCallback(
     async (categories: string[]) => {
       if (!current) return
@@ -219,6 +273,7 @@ export function useLedger() {
     removeMember,
     updateNickname,
     regenerateInviteCode,
+    deleteLedger,
     updateCategories,
     canModify,
     clearError,

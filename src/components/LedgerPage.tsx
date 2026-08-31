@@ -20,6 +20,7 @@ interface Props {
   onUpdateNickname: (nickname: string) => Promise<void>
   onRegenerateInvite: () => Promise<void>
   onUpdateCategories: (categories: string[]) => Promise<void>
+  onDeleteLedger: () => Promise<void>
 }
 export default function LedgerPage({
   view,
@@ -33,6 +34,7 @@ export default function LedgerPage({
   onUpdateNickname,
   onRegenerateInvite,
   onUpdateCategories,
+  onDeleteLedger,
 }: Props) {
   const { ledger, members, entries, myMember } = view
   const [toast, setToast] = useState<string | null>(null)
@@ -108,6 +110,7 @@ export default function LedgerPage({
           onUpdateNickname={onUpdateNickname}
           onRegenerateInvite={onRegenerateInvite}
           onUpdateCategories={onUpdateCategories}
+          onDeleteLedger={onDeleteLedger}
           onClose={() => setManageOpen(false)}
         />
       ) : null}

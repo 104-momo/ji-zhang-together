@@ -32,6 +32,7 @@ export default function App() {
     removeMember,
     updateNickname,
     regenerateInviteCode,
+    deleteLedger,
     updateCategories,
     clearError,
     setError,
@@ -124,6 +125,10 @@ export default function App() {
     if (!current) return
     await updateCategories(cats)
   }
+  const handleDeleteLedger = async () => {
+    if (!current) return
+    await deleteLedger()
+  }
   // —— 未登录：显示登录注册页（如果有 join 参数，提示登录后自动加入） ——
   if (!user) {
     return (
@@ -155,6 +160,7 @@ export default function App() {
         onUpdateNickname={handleUpdateNickname}
         onRegenerateInvite={handleRegenerate}
         onUpdateCategories={handleUpdateCats}
+        onDeleteLedger={handleDeleteLedger}
       />
     )
   } else {
