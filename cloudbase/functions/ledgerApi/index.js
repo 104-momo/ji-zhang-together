@@ -387,26 +387,35 @@ const handlers = {
   // —— 记账 ——
   async addEntry({ ledgerId, text, nickname }, context) {
     const uid = getUid(context)
-    const ledger = await getLedgerDoc(ledgerId)
-    if (!ledger) throw new Error('账本不存在')
-    // 确认是本账本成员
-    const myMember = await getMyMember(ledgerId, uid)
-    if (!myMember) throw new Error('你还没有加入这个账本')
-    const parsed = await parseEntry(text, ledger.categories)
-    if (!parsed) throw new Error('没识别出这笔账的金额，换种说法试试？')
-    const entryNickname = nickname || myMember.nickname || '我'
-    const rawText = (text || '').trim()
-    // member_id 存 members.id（PG 主键），与前端 myMember.id 对应；uid 单独存登录用户 uid 用于服务端权限校验
-    await executePGSql(`
-      INSERT INTO entries (ledger_id, member_id, uid, text, amount, category, description, note)
-      VALUES (${esc(ledgerId)}, ${esc(myMember.id)}, ${esc(uid)}, ${esc(rawText)}, ${parsed.amount}, ${esc(parsed.category)}, ${esc(parsed.description)}, ${esc(parsed.note || null)})
+    // 性能优化：一次 JOIN 同时确认「账本存在 + 我是成员」，减少串行 DB 调用
+    // 注意：ledgers.id 是 uuid，members.ledger_id 是 varchar，JOIN 需用 ::text 转换
+    const rows = await executePGSql(`
+      SELECT l.id as ledger_id, l.name as ledger_name, l.owner_id, l.categories,
+             m.id as member_id, m.name as member_name
+      FROM ledgers l
+      LEFT JOIN members m ON m.ledger_id = l.id::text AND m.uid = ${esc(uid)}
+      WHERE l.id::text = ${esc(ledgerId)} LIMIT 1
     `)
+    const row = rows[0]
+    if (!row) throw new Error('账本不存在')
+    if (!row.member_id) throw new Error('你还没有加入这个账本')
+    const categories = row.categories
+      ? (typeof row.categories === 'string' ? JSON.parse(row.categories) : row.categories)
+      : null
+    const parsed = await parseEntry(text, categories)
+    if (!parsed) throw new Error('没识别出这笔账的金额，换种说法试试？')
+    const entryNickname = nickname || row.member_name || '我'
+    const rawText = (text || '').trim()
+    // 性能优化：INSERT ... RETURNING + JOIN 一条 SQL 拿回完整 entry（含昵称），不再额外查一次
     const entryRows = await executePGSql(`
-      SELECT e.*, m.id as resolved_member_id, m.name as nickname
-      FROM entries e
-      LEFT JOIN members m ON m.ledger_id = e.ledger_id AND m.uid = e.uid
-      WHERE e.ledger_id = ${esc(ledgerId)} AND e.uid = ${esc(uid)}
-      ORDER BY e.created_at DESC LIMIT 1
+      WITH ins AS (
+        INSERT INTO entries (ledger_id, member_id, uid, text, amount, category, description, note)
+        VALUES (${esc(ledgerId)}, ${esc(row.member_id)}, ${esc(uid)}, ${esc(rawText)}, ${parsed.amount}, ${esc(parsed.category)}, ${esc(parsed.description)}, ${esc(parsed.note || null)})
+        RETURNING *
+      )
+      SELECT ins.*, m.id as resolved_member_id, m.name as nickname
+      FROM ins
+      LEFT JOIN members m ON m.ledger_id = ins.ledger_id AND m.uid = ins.uid
     `)
     return rowToEntry(entryRows[0])
   },
@@ -497,6 +506,15 @@ const handlers = {
     await executePGSql(`UPDATE members SET name = ${esc(name)} WHERE id = ${esc(myMember.id)}`)
     const rows = await executePGSql(`SELECT * FROM members WHERE id = ${esc(myMember.id)} LIMIT 1`)
     return rowToMember(rows[0])
+  },
+  // —— 删除账本（仅创建者，级联删除账目与成员） ——
+  async deleteLedger({ ledgerId }, context) {
+    const uid = getUid(context)
+    await assertOwner(ledgerId, uid)
+    await executePGSql(`DELETE FROM entries WHERE ledger_id = ${esc(ledgerId)}`)
+    await executePGSql(`DELETE FROM members WHERE ledger_id = ${esc(ledgerId)}`)
+    await executePGSql(`DELETE FROM ledgers WHERE id = ${esc(ledgerId)}`)
+    return { ok: true }
   },
   // —— 重新生成邀请码（仅创建者） ——
   async regenerateInviteCode({ ledgerId }, context) {
