@@ -487,6 +487,17 @@ const handlers = {
     if (member.uid === uid) throw new Error('不能移除自己')
     await executePGSql(`DELETE FROM members WHERE id = ${esc(memberId)}`)
   },
+  // —— 修改自己在本账本中的昵称 ——
+  async updateNickname({ ledgerId, nickname }, context) {
+    const uid = getUid(context)
+    const name = (nickname || '').trim()
+    if (!name) throw new Error('昵称不能为空')
+    const myMember = await getMyMember(ledgerId, uid)
+    if (!myMember) throw new Error('你还没有加入这个账本')
+    await executePGSql(`UPDATE members SET name = ${esc(name)} WHERE id = ${esc(myMember.id)}`)
+    const rows = await executePGSql(`SELECT * FROM members WHERE id = ${esc(myMember.id)} LIMIT 1`)
+    return rowToMember(rows[0])
+  },
   // —— 重新生成邀请码（仅创建者） ——
   async regenerateInviteCode({ ledgerId }, context) {
     const uid = getUid(context)
