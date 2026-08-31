@@ -8,14 +8,14 @@
 - 👥 多人共享：创建账本 → 生成邀请链接 → 成员加入后共同记账
 - 📊 分类统计：按餐饮/交通/购物等分类汇总月度支出（可折叠）
 - 📱 移动端友好：H5 响应式，可添加到手机桌面当 App 用
-- 📧 邮箱注册登录：真实邮箱验证码验证
+- 📧 邮箱注册登录：真实邮箱验证码验证（无匿名登录）
 
 ## 技术栈
 
 - 前端：React 19 + TypeScript + Vite
 - 后端：腾讯云 CloudBase 云函数（Node.js）
 - 数据库：腾讯云 CloudBase PostgreSQL
-- 认证：CloudBase 匿名/邮箱登录（SDK 3.x）
+- 认证：CloudBase 邮箱验证码注册 + 密码登录（无匿名）
 
 ## 本地开发
 
@@ -24,7 +24,7 @@ npm install
 npm run dev        # 本地开发，http://localhost:5173
 ```
 
-不配置环境变量时走本地 mock 单人演示模式；配置 `VITE_CLOUDBASE_ENV` 后切换到云端共享模式（见 `.env.example`）。
+配置 `VITE_CLOUDBASE_ENV`（见 `.env.example`）走云端共享模式；不配置时走**本地 mock 开发模式**（localStorage 模拟数据，仅用于本地跑通，线上不启用）。
 
 ## 构建与部署
 
@@ -51,7 +51,7 @@ cloudbase/functions/ledgerApi/   云函数后端（PostgreSQL 读写、鉴权）
 
 ## 数据同步方案
 
-数据存于 PostgreSQL，前端无法直连，统一通过云函数访问；前端每 4 秒轮询 `listMembers` / `listEntries` 实现实时同步（见 `src/services/cloudbase.ts` 与 `src/store/useLedger.ts`）。
+数据存于 PostgreSQL，前端无法直连，统一通过云函数访问；前端每 2 秒轮询 `listMembers` / `listEntries` 实现实时同步（见 `src/services/cloudbase.ts` 与 `src/store/useLedger.ts`）。
 
 ## 说明
 
