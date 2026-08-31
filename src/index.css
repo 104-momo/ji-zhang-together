@@ -8,23 +8,27 @@
   --surface: #ffffff;
   --surface-2: #faf8f3;
   --surface-3: #f1ede4;
+
   /* —— 墨色三级 —— */
   --ink-1: #211d16;
   --ink-2: #554e42;
   --ink-3: #948b7b;
   --line: rgba(33, 29, 22, 0.08);
   --line-strong: rgba(33, 29, 22, 0.14);
+
   /* —— 主色：沉稳青绿 —— */
   --accent: #1f8a70;
   --accent-strong: #176e59;
   --accent-soft: rgba(31, 138, 112, 0.1);
   --on-accent: #ffffff;
   --accent-shadow: 0 4px 14px rgba(31, 138, 112, 0.28);
+
   /* —— 语义色 —— */
   --danger: #c0504a;
   --danger-soft: rgba(192, 80, 74, 0.1);
   --warn: #c08431;
   --warn-soft: rgba(192, 132, 49, 0.12);
+
   /* —— 分类色（降饱和 8 色）—— */
   --c-food: #e0893c;
   --c-transit: #4a90c2;
@@ -34,18 +38,22 @@
   --c-med: #d4645c;
   --c-social: #dd8a4a;
   --c-other: #9a9388;
+
   /* —— 圆角 4 角色 —— */
   --r-shell: 22px;
   --r-card: 14px;
   --r-control: 10px;
   --r-pill: 999px;
+
   /* —— 多层暖相阴影 —— */
   --shadow-card: 0 1px 2px rgba(33, 29, 22, 0.04), 0 6px 18px -12px rgba(33, 29, 22, 0.14);
   --shadow-pop: 0 2px 8px rgba(33, 29, 22, 0.06), 0 24px 56px -20px rgba(33, 29, 22, 0.26);
   --shadow-bar: 0 -2px 16px -8px rgba(33, 29, 22, 0.12);
+
   --ease: cubic-bezier(0.22, 0.75, 0.3, 1);
   --maxw: 480px;
 }
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -86,6 +94,7 @@ select {
 .stats-member-amount {
   font-variant-numeric: tabular-nums;
 }
+
 .app-frame {
   position: relative;
   max-width: var(--maxw);
@@ -101,12 +110,14 @@ select {
     box-shadow: 0 0 0 1px var(--line), 0 40px 90px -30px rgba(33, 29, 22, 0.3);
   }
 }
+
 .page {
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
 }
+
 /* ============ 首页 ============ */
 .home {
   height: 100%;
@@ -335,6 +346,7 @@ select {
   font-size: 13px;
   padding: 18px 0;
 }
+
 /* ============ 加入页 ============ */
 .join {
   height: 100%;
@@ -358,6 +370,7 @@ select {
   color: var(--ink-3);
   margin-bottom: 22px;
 }
+
 /* ============ 账本页头部 ============ */
 .header {
   background: var(--surface);
@@ -441,6 +454,7 @@ select {
   font-weight: 800;
   letter-spacing: -0.01em;
 }
+
 .ledger-actions {
   display: flex;
   gap: 8px;
@@ -471,6 +485,7 @@ select {
   width: 14px;
   height: 14px;
 }
+
 /* ============ 分类统计折叠 ============ */
 .cat-stats {
   margin: 10px 16px 2px;
@@ -602,6 +617,7 @@ select {
   color: var(--ink-1);
   font-size: 13px;
 }
+
 /* ============ 消息流 / 气泡 ============ */
 .msg-list {
   flex: 1;
@@ -740,9 +756,13 @@ select {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  background: var(--surface);
 }
 .bubble-row.mine .edit-panel {
   border-top-color: rgba(255, 255, 255, 0.3);
+  /* 自己的气泡编辑面板：深色背景，与 mine 气泡一致，保证白色文字可见 */
+  background: rgba(13, 94, 77, 0.92);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 .edit-row {
   display: flex;
@@ -795,6 +815,16 @@ select {
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
 }
+.bubble-row.mine .edit-note::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+.bubble-row.mine .btn-cancel {
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.92);
+}
+.bubble-row.mine .edit-cat option {
+  color: #222;
+}
 .history {
   margin-top: 6px;
   font-size: 10px;
@@ -804,6 +834,7 @@ select {
 .bubble-row.mine .history {
   color: rgba(255, 255, 255, 0.7);
 }
+
 .input-bar {
   flex-shrink: 0;
   display: flex;
@@ -854,6 +885,7 @@ select {
   height: 20px;
   margin-left: 2px;
 }
+
 /* ============ 弹窗 ============ */
 .modal-overlay {
   position: fixed;
@@ -1006,6 +1038,7 @@ select {
   width: 11px;
   height: 11px;
 }
+
 /* ============ 统计页 ============ */
 .stats-header {
   display: flex;
@@ -1224,6 +1257,7 @@ select {
   width: 36px;
   text-align: right;
 }
+
 /* ============ Toast ============ */
 .toast {
   position: fixed;
