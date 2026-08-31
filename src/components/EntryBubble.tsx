@@ -115,7 +115,7 @@ export default function EntryBubble({ entry, myMemberId, isOwner, onUpdate, onDe
           ) : null}
         </div>
         {editing && canEdit ? (
-          <div className="edit-panel" ref={panelRef} style={{ background: 'var(--surface)', borderRadius: 'var(--r-card)', padding: 10, marginTop: 6, border: '1px solid var(--line)' }}>
+          <div className="edit-panel" ref={panelRef} style={{ borderRadius: 'var(--r-card)', padding: 10, marginTop: 6, border: '1px solid var(--line)' }}>
             <div className="edit-row">
               <input
                 className="edit-amount"
