@@ -529,11 +529,13 @@ const handlers = {
     if (!entry) throw new Error('账目不存在')
     const ledger = await getLedgerDoc(entry.ledgerId)
     if (!ledger) throw new Error('账本不存在')
-    // 权限：本人（uid = 登录用户）或创建者（ownerId = uid）
-    if (entry.uid !== uid && ledger.ownerId !== uid) {
-      throw new Error('只能修改自己的账')
-    }
+    // 权限：创建者可改任意账；普通成员必须当前仍是本账本成员，且只能改自己的账（被移除即失权）
+    const isOwner = ledger.ownerId === uid
     const myMember = await getMyMember(entry.ledgerId, uid)
+    if (!isOwner) {
+      if (!myMember) throw new Error('你还没有加入这个账本')
+      if (entry.uid !== uid) throw new Error('只能修改自己的账')
+    }
     const operatorNickname = myMember ? myMember.nickname : '我'
     const sets = []
     if (patch.amount !== undefined) sets.push(`amount = ${esc(patch.amount)}`)
@@ -564,11 +566,13 @@ const handlers = {
     if (!entry) throw new Error('账目不存在')
     const ledger = await getLedgerDoc(entry.ledgerId)
     if (!ledger) throw new Error('账本不存在')
-    // 权限：本人（uid = 登录用户）或创建者（ownerId = uid）
-    if (entry.uid !== uid && ledger.ownerId !== uid) {
-      throw new Error('只能删除自己的账')
-    }
+    // 权限：创建者可删任意账；普通成员必须当前仍是本账本成员，且只能删自己的账（被移除即失权）
+    const isOwner = ledger.ownerId === uid
     const myMember = await getMyMember(entry.ledgerId, uid)
+    if (!isOwner) {
+      if (!myMember) throw new Error('你还没有加入这个账本')
+      if (entry.uid !== uid) throw new Error('只能删除自己的账')
+    }
     const operatorNickname = myMember ? myMember.nickname : '我'
     // 历史记录保存原始值，便于审计追溯
     const historyEntry = {
