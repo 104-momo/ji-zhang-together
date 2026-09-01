@@ -1,5 +1,7 @@
 import { parseEntryText } from '../src/parser'
+
 const cases: Array<[string, number, string]> = [
+  // [输入, 期望金额, 期望分类]
   ['吃烤鱼200', 200, '餐饮'],
   ['吃烤鱼200元', 200, '餐饮'],
   ['打车35.5', 35.5, '交通'],
@@ -14,8 +16,9 @@ const cases: Array<[string, number, string]> = [
   ['药店买药56', 56, '医疗'],
   ['给妈妈红包200', 200, '人情'],
   ['奶茶18块', 18, '餐饮'],
-  ['吃烤鱼200 和小王生日', 200, '餐饮'],
+  ['吃烤鱼200 和小王生日', 200, '餐饮'], // 备注场景
 ]
+
 let fail = 0
 for (const [text, amount, category] of cases) {
   const r = parseEntryText(text)
@@ -33,6 +36,8 @@ for (const [text, amount, category] of cases) {
     fail++
   }
 }
+
+// 无金额应返回 null
 const bad = parseEntryText('今天心情不错')
 if (bad) {
   console.log(`✗ "今天心情不错" → 不应解析出结果，实际 ${JSON.stringify(bad)}`)
@@ -40,5 +45,6 @@ if (bad) {
 } else {
   console.log('✓ "今天心情不错" → 正确返回 null（交给 LLM 兜底）')
 }
+
 console.log(fail === 0 ? '\n全部通过' : `\n${fail} 项失败`)
 process.exit(fail === 0 ? 0 : 1)

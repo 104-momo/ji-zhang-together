@@ -1,10 +1,12 @@
 import type { Category, ParsedEntry } from '../types'
+
 /**
  * 第一级：本地规则解析（零延迟，覆盖常见简单句式）
  * - 金额提取：支持 "200元 / 200块 / 200块钱 / ¥200 / ￥200 / 200 / 花了25元" 等中文金额表达
  * - 分类：按关键词匹配（强词优先）
  * - 描述：金额之前的文本；备注：金额之后的文本（如 "吃烤鱼200 和小王生日" → 描述"吃烤鱼" 备注"和小王生日"）
  */
+
 // 分类关键词表：数组顺序即匹配优先级，强词在前、通用词在后
 const KEYWORDS: Array<[Category, string[]]> = [
   ['医疗', ['药', '医院', '看病', '体检', '挂号', '诊所', '牙科', '打针', '输液']],
@@ -28,13 +30,16 @@ const KEYWORDS: Array<[Category, string[]]> = [
   ['娱乐', ['电影', '游戏', '会员', 'KTV', '演唱会', '门票', '健身', '游泳', '酒吧', '剧本杀', '密室', '充值']],
   ['人情', ['红包', '份子', '送礼', '礼物', '随礼', '生日', '结婚', '借款', '还钱']],
 ]
+
 const AMOUNT_RE = /(\d+(?:\.\d{1,2})?)\s*(元|块|块钱|rmb|RMB|¥|￥)?/g
+
 interface AmountMatch {
   value: number
   index: number
   length: number
   hasUnit: boolean
 }
+
 /** 提取文本中的金额：优先带单位（元/块/¥）的，否则取数值最大的 */
 function extractAmount(text: string): AmountMatch | null {
   const matches: AmountMatch[] = []
@@ -47,6 +52,7 @@ function extractAmount(text: string): AmountMatch | null {
     }
   }
   if (matches.length === 0) return null
+
   const unitMatches = matches.filter((it) => it.hasUnit)
   if (unitMatches.length > 0) {
     // 多个带单位时取最后一个（金额通常在句末）
@@ -59,6 +65,7 @@ function extractAmount(text: string): AmountMatch | null {
   }
   return best
 }
+
 /** 分类关键词匹配 */
 function matchCategory(text: string): Category {
   for (const [cat, words] of KEYWORDS) {
@@ -68,16 +75,20 @@ function matchCategory(text: string): Category {
   }
   return '其他'
 }
+
 /**
  * 规则解析入口。解析不了（无金额）返回 null，由上层走 LLM 兜底。
  */
 export function parseByRules(text: string): ParsedEntry | null {
   const t = text.trim()
   if (!t) return null
+
   const am = extractAmount(t)
   if (!am) return null
+
   const before = t.slice(0, am.index).trim()
   const after = t.slice(am.index + am.length).trim()
+
   // 描述 = 金额前文本（无则用金额后文本）；备注 = 金额后文本（描述在金额前时）
   let description = before
   let note: string | undefined
@@ -86,8 +97,10 @@ export function parseByRules(text: string): ParsedEntry | null {
   } else {
     description = after
   }
+
   // 金额出现在句子最前面时（如 "200块钱买早餐"），用整句做分类匹配
   const category = matchCategory(t)
+
   return {
     amount: am.value,
     category,
@@ -96,6 +109,7 @@ export function parseByRules(text: string): ParsedEntry | null {
     matchedBy: 'rule',
   }
 }
+
 /**
  * 本地兜底：规则层没匹配到金额、且 LLM 不可用时，尽量从文本抠一个数字
  * （本地 mock 阶段使用；云函数阶段该层替换为 GLM 调用）

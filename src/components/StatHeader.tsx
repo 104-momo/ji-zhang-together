@@ -1,5 +1,6 @@
 import type { Entry } from '../types'
 import { IconArrowLeft, IconPlus, IconUsers } from './Icons'
+
 interface Props {
   ledgerName: string
   entries: Entry[]
@@ -7,6 +8,7 @@ interface Props {
   onShare: () => void
   onBack: () => void
 }
+
 export default function StatHeader({ ledgerName, entries, memberCount, onShare, onBack }: Props) {
   const now = new Date()
   const ym = `${now.getFullYear()}-${now.getMonth()}`
@@ -16,6 +18,7 @@ export default function StatHeader({ ledgerName, entries, memberCount, onShare, 
     return `${d.getFullYear()}-${d.getMonth()}` === ym
   })
   const total = monthEntries.reduce((s, e) => s + e.amount, 0)
+
   return (
     <div className="header">
       <div className="header-top">

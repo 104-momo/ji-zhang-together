@@ -1,4 +1,5 @@
 import type { Category, Entry, Ledger, Member } from '../types'
+
 /**
  * 账本数据层统一接口。
  * - mock.ts：本地实现（localStorage + 事件订阅模拟实时推送），本地跑通用
@@ -12,6 +13,8 @@ export interface LedgerAPI {
   getLedger(id: string): Promise<Ledger | null>
   /** 按 id 列表批量取账本（用于列出“我参与的所有账本”） */
   getLedgersByIds(ids: string[]): Promise<Ledger[]>
+  /** 按登录用户查询我参与的所有账本（跨设备可用，替代本地缓存） */
+  listLedgersByUid(): Promise<Ledger[]>
   listMembers(ledgerId: string): Promise<Member[]>
   listEntries(ledgerId: string): Promise<Entry[]>
   /** 聊天式记账入口：整句话 → 解析 → 入账 */

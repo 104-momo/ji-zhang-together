@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Category, Entry, Ledger, Member } from '../types'
 import { api } from '../services'
+import { auth } from '../services/auth'
 import { parseEntryText } from '../parser'
+
 const K_IDENTITY = 'jz_identity' // Record<ledgerId, { memberId, nickname }>
+
 interface IdentityRecord {
   memberId: string
   nickname: string
 }
+
 function loadIdentity(): Record<string, IdentityRecord> {
   try {
     return JSON.parse(localStorage.getItem(K_IDENTITY) || '{}') as Record<string, IdentityRecord>
@@ -17,6 +21,7 @@ function loadIdentity(): Record<string, IdentityRecord> {
 function saveIdentity(v: Record<string, IdentityRecord>): void {
   localStorage.setItem(K_IDENTITY, JSON.stringify(v))
 }
+
 export interface LedgerView {
   ledger: Ledger
   members: Member[]
@@ -27,21 +32,37 @@ export interface LedgerView {
 function isOwnerOf(ledger: Ledger, member: Member): boolean {
   return ledger.ownerId === member.id || (!!member.uid && ledger.ownerId === member.uid)
 }
+
 export function useLedger() {
   const [myLedgers, setMyLedgers] = useState<Ledger[]>([])
   const [current, setCurrent] = useState<LedgerView | null>(null)
   const [error, setError] = useState<string | null>(null)
+
   const identityRef = useRef<Record<string, IdentityRecord>>(loadIdentity())
-  // 刷新“我参与的所有账本”
+  // 刷新“我参与的所有账本”：云端按登录 uid 查询（跨设备可靠），不再依赖本地缓存
   const refreshMyLedgers = useCallback(async () => {
-    const ids = Object.keys(identityRef.current)
-    if (ids.length === 0) {
+    try {
+      const ledgers = await api.listLedgersByUid()
+      setMyLedgers(ledgers)
+    } catch {
       setMyLedgers([])
-      return
     }
-    const ledgers = await api.getLedgersByIds(ids)
-    setMyLedgers(ledgers)
   }, [])
+
+  // 监听登录态：登录/注册成功后刷新我的账本列表（此前仅在组件挂载时刷新一次，
+  // 未登录时拿不到 token 会失败，登录后不会自动重试，导致账本列表为空）
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged((u) => {
+      if (u?.uid) {
+        void refreshMyLedgers()
+      } else {
+        setMyLedgers([])
+        setCurrent(null)
+      }
+    })
+    return unsub
+  }, [refreshMyLedgers])
+
   // 打开某个账本：加载 members + entries + 订阅实时
   const openLedger = useCallback(async (ledgerId: string) => {
     const ledger = await api.getLedger(ledgerId)
@@ -49,21 +70,27 @@ export function useLedger() {
       setError('账本不存在')
       return
     }
+    const members = await api.listMembers(ledgerId)
+    const entries = await api.listEntries(ledgerId)
+    // 优先按登录 uid 定位“我”的成员记录（跨设备可靠）；mock 模式无 uid 时回退本地缓存
+    const uid = auth.getCurrentUser()?.uid
     const idRec = identityRef.current[ledgerId]
-    if (!idRec) {
+    const myMember =
+      (uid ? members.find((m) => m.uid === uid) : undefined) ??
+      members.find((m) => m.id === idRec?.memberId) ??
+      {
+        id: idRec?.memberId ?? '',
+        ledgerId,
+        nickname: idRec?.nickname ?? '我',
+        joinedAt: Date.now(),
+      }
+    if (!uid && !idRec) {
       setError('你还没有加入这个账本')
       return
     }
-    const members = await api.listMembers(ledgerId)
-    const entries = await api.listEntries(ledgerId)
-    const myMember = members.find((m) => m.id === idRec.memberId) ?? {
-      id: idRec.memberId,
-      ledgerId,
-      nickname: idRec.nickname,
-      joinedAt: Date.now(),
-    }
     setCurrent({ ledger, members, entries, myMember })
   }, [])
+
   // 实时同步：数据在 PostgreSQL，无法用文档数据库 watch，改为定时轮询云函数
   useEffect(() => {
     if (!current) return
@@ -94,10 +121,12 @@ export function useLedger() {
       clearInterval(timer)
     }
   }, [current?.ledger.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // 初始化：加载我的账本；支持 ?join= 链接直达由 App 层处理
   useEffect(() => {
     void refreshMyLedgers()
   }, [refreshMyLedgers])
+
   const createLedger = useCallback(
     async (name: string, nickname: string) => {
       const { ledger, member } = await api.createLedger(name, nickname)
@@ -109,6 +138,7 @@ export function useLedger() {
     },
     [openLedger, refreshMyLedgers],
   )
+
   const joinLedger = useCallback(
     async (ledgerId: string, code: string, nickname: string) => {
       const { ledger, member } = await api.joinLedger(ledgerId, code, nickname)
@@ -120,9 +150,11 @@ export function useLedger() {
     },
     [openLedger, refreshMyLedgers],
   )
+
   const leaveLedger = useCallback(() => {
     setCurrent(null)
   }, [])
+
   const addEntry = useCallback(
     async (text: string) => {
       if (!current) throw new Error('请先进入账本')
@@ -161,6 +193,7 @@ export function useLedger() {
     },
     [current],
   )
+
   const updateEntry = useCallback(
     async (entryId: string, patch: { amount?: number; category?: Category; note?: string }) => {
       if (!current) throw new Error('请先进入账本')
@@ -173,30 +206,22 @@ export function useLedger() {
     },
     [current],
   )
+
   const deleteEntry = useCallback(
     async (entryId: string) => {
       if (!current) throw new Error('请先进入账本')
       await api.deleteEntry(entryId, current.myMember.id, current.myMember.nickname)
-      // 本地立即标记为已删除（与云端软删除行为一致），避免等 2s 轮询才消失
-      setCurrent((c) =>
-        c
-          ? {
-              ...c,
-              entries: c.entries.map((e) =>
-                e.id === entryId
-                  ? { ...e, amount: 0, note: (e.note ? e.note + ' · ' : '') + '【已删除】' }
-                  : e,
-              ),
-            }
-          : c,
-      )
+      // 本地立即移除该条目（云端已软删除，列表过滤后不再显示），避免等 2s 轮询才消失
+      setCurrent((c) => (c ? { ...c, entries: c.entries.filter((e) => e.id !== entryId) } : c))
     },
     [current],
   )
+
   const assertOwner = useCallback(() => {
     if (!current) throw new Error('请先进入账本')
     if (!isOwnerOf(current.ledger, current.myMember)) throw new Error('只有账本创建者可以操作')
   }, [current])
+
   const renameLedger = useCallback(
     async (newName: string) => {
       if (!current) return
@@ -206,6 +231,7 @@ export function useLedger() {
     },
     [current, assertOwner],
   )
+
   const removeMember = useCallback(
     async (memberId: string) => {
       if (!current) return
@@ -217,6 +243,7 @@ export function useLedger() {
     },
     [current, assertOwner],
   )
+
   const updateNickname = useCallback(
     async (nickname: string) => {
       if (!current) throw new Error('请先进入账本')
@@ -258,6 +285,7 @@ export function useLedger() {
     setCurrent(null)
     await refreshMyLedgers()
   }, [current, assertOwner, refreshMyLedgers])
+
   const updateCategories = useCallback(
     async (categories: string[]) => {
       if (!current) return
@@ -267,6 +295,8 @@ export function useLedger() {
     },
     [current, assertOwner],
   )
+
+
   // 权限：本人可改删自己的；账本创建者可改删任何人的
   const canModify = useCallback(
     (entry: Entry): boolean => {
@@ -275,16 +305,16 @@ export function useLedger() {
     },
     [current],
   )
+
   const clearError = useCallback(() => setError(null), [])
+
   return {
     myLedgers,
     current,
     error,
-    clearError,
-    refreshMyLedgers,
-    openLedger,
     createLedger,
     joinLedger,
+    openLedger,
     leaveLedger,
     addEntry,
     updateEntry,
@@ -296,5 +326,7 @@ export function useLedger() {
     deleteLedger,
     updateCategories,
     canModify,
+    clearError,
+    setError,
   }
 }

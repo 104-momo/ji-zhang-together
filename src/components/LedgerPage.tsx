@@ -8,6 +8,7 @@ import LedgerManage from './LedgerManage'
 import { IconChart, IconGear } from './Icons'
 import { createInviteLink } from '../services/mock'
 import type { LedgerView } from '../store/useLedger'
+
 interface Props {
   view: LedgerView
   onAddEntry: (text: string) => Promise<Entry>
@@ -22,6 +23,7 @@ interface Props {
   onUpdateCategories: (categories: string[]) => Promise<void>
   onDeleteLedger: () => Promise<void>
 }
+
 export default function LedgerPage({
   view,
   onAddEntry,
@@ -40,12 +42,16 @@ export default function LedgerPage({
   const [toast, setToast] = useState<string | null>(null)
   const [manageOpen, setManageOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
+  // 排除已删除账目（软删除），避免残留显示
+  const activeEntries = entries.filter((e) => !e.deleted)
   // 兼容判断创建者：CloudBase 模式 ledger.ownerId 是 uid，与 myMember.uid 对应；mock 模式 ownerId 是 member.id
   const isOwner = ledger.ownerId === myMember.id || (!!myMember.uid && ledger.ownerId === myMember.uid)
+
   useEffect(() => {
     const el = listRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [entries.length])
+  }, [activeEntries.length])
+
   const share = async () => {
     const link = createInviteLink(ledger)
     try {
@@ -56,6 +62,7 @@ export default function LedgerPage({
     }
     setTimeout(() => setToast(null), 3000)
   }
+
   const handleAdd = async (text: string) => {
     try {
       await onAddEntry(text)
@@ -64,6 +71,7 @@ export default function LedgerPage({
       setTimeout(() => setToast(null), 3000)
     }
   }
+
   return (
     <div className="page ledger">
       <StatHeader
@@ -79,13 +87,13 @@ export default function LedgerPage({
       </div>
       <CategoryStats entries={entries} />
       <div className="msg-list" ref={listRef}>
-        {entries.length === 0 ? (
+        {activeEntries.length === 0 ? (
           <div className="empty">
             <p>还没有账目</p>
             <p className="empty-sub">在下面说一句，比如「吃烤鱼200元」</p>
           </div>
         ) : (
-          entries.map((e) => (
+          activeEntries.map((e) => (
             <EntryBubble
               key={e.id}
               entry={e}

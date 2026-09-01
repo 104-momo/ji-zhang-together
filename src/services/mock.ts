@@ -1,13 +1,16 @@
 import type { Category, Entry, Ledger, Member } from '../types'
 import { parseEntryText } from '../parser'
 import type { LedgerAPI } from './api'
+
 /**
  * 本地 mock 实现：localStorage 持久化 + 事件订阅模拟 CloudBase 实时推送。
  * 用于本地跑通验证；接入 CloudBase 后整体替换为 cloudbase.ts。
  */
+
 const K_LEDGERS = 'jz_ledgers'
 const K_MEMBERS = 'jz_members'
 const K_ENTRIES = 'jz_entries'
+
 function load<T>(key: string): T[] {
   try {
     const raw = localStorage.getItem(key)
@@ -19,18 +22,22 @@ function load<T>(key: string): T[] {
 function save<T>(key: string, val: T[]): void {
   localStorage.setItem(key, JSON.stringify(val))
 }
+
 function uid(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
 }
 function genInviteCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase()
 }
+
 // —— 实时推送模拟：每个 ledgerId 一个监听表 ——
 const listeners: Record<string, Array<(entries: Entry[]) => void>> = {}
+
 function notify(ledgerId: string): void {
   const all = load<Entry>(K_ENTRIES).filter((e) => e.ledgerId === ledgerId)
   ;(listeners[ledgerId] || []).forEach((cb) => cb([...all].sort((a, b) => a.createdAt - b.createdAt)))
 }
+
 export function createInviteLink(ledger: Ledger): string {
   try {
     const url = new URL(window.location.href)
@@ -41,6 +48,7 @@ export function createInviteLink(ledger: Ledger): string {
     return `?join=${ledger.id}&code=${ledger.inviteCode}`
   }
 }
+
 export const mockAPI: LedgerAPI = {
   async createLedger(name, nickname) {
     const ledger: Ledger = {
@@ -56,6 +64,7 @@ export const mockAPI: LedgerAPI = {
     save<Member>(K_MEMBERS, [...load<Member>(K_MEMBERS), member])
     return { ledger, member, inviteLink: createInviteLink(ledger) }
   },
+
   async joinLedger(ledgerId, inviteCode, nickname) {
     const ledger = load<Ledger>(K_LEDGERS).find((l) => l.id === ledgerId && l.inviteCode === inviteCode)
     if (!ledger) throw new Error('账本不存在或邀请码无效')
@@ -63,21 +72,29 @@ export const mockAPI: LedgerAPI = {
     save<Member>(K_MEMBERS, [...load<Member>(K_MEMBERS), member])
     return { ledger, member }
   },
+
   async getLedger(id) {
     return load<Ledger>(K_LEDGERS).find((l) => l.id === id) ?? null
   },
+
   async getLedgersByIds(ids) {
     const set = new Set(ids)
     return load<Ledger>(K_LEDGERS).filter((l) => set.has(l.id))
   },
+  async listLedgersByUid() {
+    return load<Ledger>(K_LEDGERS)
+  },
+
   async listMembers(ledgerId) {
     return load<Member>(K_MEMBERS).filter((m) => m.ledgerId === ledgerId)
   },
+
   async listEntries(ledgerId) {
     return load<Entry>(K_ENTRIES)
       .filter((e) => e.ledgerId === ledgerId)
       .sort((a, b) => a.createdAt - b.createdAt)
   },
+
   async addEntry(ledgerId, memberId, nickname, text) {
     const parsed = parseEntryText(text)
     if (!parsed) throw new Error('没识别出这笔账的金额，换种说法试试？')
@@ -98,6 +115,7 @@ export const mockAPI: LedgerAPI = {
     notify(ledgerId)
     return entry
   },
+
   async updateEntry(entryId, patch, memberId, nickname) {
     const all = load<Entry>(K_ENTRIES)
     const entry = all.find((e) => e.id === entryId)
@@ -112,6 +130,7 @@ export const mockAPI: LedgerAPI = {
     notify(entry.ledgerId)
     return updated
   },
+
   async deleteEntry(entryId, memberId, nickname) {
     const all = load<Entry>(K_ENTRIES)
     const entry = all.find((e) => e.id === entryId)
@@ -122,6 +141,7 @@ export const mockAPI: LedgerAPI = {
     save<Entry>(K_ENTRIES, all.map((e) => (e.id === entryId ? marked : e)))
     notify(entry.ledgerId)
   },
+
   async renameLedger(ledgerId, newName) {
     const all = load<Ledger>(K_LEDGERS)
     const ledger = all.find((l) => l.id === ledgerId)
@@ -164,6 +184,7 @@ export const mockAPI: LedgerAPI = {
     save<Ledger>(K_LEDGERS, all)
     return ledger
   },
+
   watchEntries(ledgerId, onChange) {
     if (!listeners[ledgerId]) listeners[ledgerId] = []
     listeners[ledgerId].push(onChange)
@@ -172,4 +193,5 @@ export const mockAPI: LedgerAPI = {
     }
   },
 }
+
 export type { Category }

@@ -6,15 +6,15 @@
 
 - 🗣️ 一句话自然语言记账：输入「吃烤鱼200元」→ 自动识别金额 200、分类「餐饮」
 - 👥 多人共享：创建账本 → 生成邀请链接 → 成员加入后共同记账
-- 📊 分类统计：按餐饮/交通/购物等分类汇总月度支出（可折叠）
+- 📊 分类统计：按餐饮/交通/购物等分类汇总支出（小按钮按需展开，可按人筛选）
 - 📱 移动端友好：H5 响应式，可添加到手机桌面当 App 用
-- 📧 邮箱注册登录：真实邮箱验证码验证（无匿名登录）
+- 📧 邮箱注册登录：真实邮箱验证码验证（无匿名登录、无演示模式）
 
 ## 技术栈
 
 - 前端：React 19 + TypeScript + Vite
-- 后端：腾讯云 CloudBase 云函数（Node.js）
-- 数据库：腾讯云 CloudBase PostgreSQL
+- 后端：腾讯云 CloudBase 云函数（Node.js，单函数 ledgerApi）
+- 数据库：腾讯云 CloudBase PostgreSQL（uuid 主键）
 - 认证：CloudBase 邮箱验证码注册 + 密码登录（无匿名）
 
 ## 本地开发
@@ -36,7 +36,7 @@ tcb hosting deploy dist -e <环境ID>
 tcb fn deploy ledgerApi -e <环境ID> --force
 ```
 
-详细部署步骤见 `DEPLOY.md`。
+详细部署步骤见 `DEPLOY.md`。表结构由云函数 `initSchema` 幂等建立（uuid 主键），无需手工建表。
 
 ## 项目结构
 
@@ -51,7 +51,14 @@ cloudbase/functions/ledgerApi/   云函数后端（PostgreSQL 读写、鉴权）
 
 ## 数据同步方案
 
-数据存于 PostgreSQL，前端无法直连，统一通过云函数访问；前端每 2 秒轮询 `listMembers` / `listEntries` 实现实时同步（见 `src/services/cloudbase.ts` 与 `src/store/useLedger.ts`）。
+数据存于 PostgreSQL，前端无法直连，统一通过云函数访问；前端每 2 秒轮询 `listMembers` / `listEntries` 拉取对方更新（见 `src/services/cloudbase.ts` 与 `src/store/useLedger.ts`）。本方记账走乐观更新，点发送立即出气泡，云端确认后回填。
+
+## 安全与权限
+
+- 每次云函数调用都携带登录 accessToken，由云函数向 CloudBase 网关校验换取真实 uid，前端不传、也无法伪造身份。
+- 所有读接口校验「是否为本账本成员」，写接口校验成员/创建者身份，防止越权读写他人账本。
+- 账本仅邀请成员可见；创建者可重新生成邀请码使旧链接失效；成员只能改删自己的账目，创建者可管理全部。
+- 数据库主键为 uuid，输入做长度限制与 SQL 转义；删除为软删除并保留修改历史。
 
 ## 说明
 

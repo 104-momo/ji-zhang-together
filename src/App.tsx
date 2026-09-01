@@ -5,10 +5,12 @@ import HomePage from './components/HomePage'
 import LedgerPage from './components/LedgerPage'
 import StatsPage from './components/StatsPage'
 import AuthPage from './components/AuthPage'
+
 interface JoinParams {
   ledgerId: string
   code: string
 }
+
 function parseJoinParams(): JoinParams | null {
   const p = new URLSearchParams(location.search)
   const ledgerId = p.get('join')
@@ -16,6 +18,7 @@ function parseJoinParams(): JoinParams | null {
   if (ledgerId && code) return { ledgerId, code }
   return null
 }
+
 export default function App() {
   const {
     myLedgers,
@@ -37,9 +40,11 @@ export default function App() {
     clearError,
     setError,
   } = useLedger()
+
   const [join, setJoin] = useState<JoinParams | null>(parseJoinParams)
   const [user, setUser] = useState<AuthUser | null>(() => auth.getCurrentUser())
   const [showStats, setShowStats] = useState(false)
+
   // 监听登录态变化
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((u) => {
@@ -52,6 +57,7 @@ export default function App() {
     })
     return unsub
   }, [leaveLedger])
+
   // 已登录且有 join 参数时，自动加入账本（兜底：直接打开邀请链接/登录态恢复）
   useEffect(() => {
     if (user && join && !current) {
@@ -64,6 +70,7 @@ export default function App() {
         })
     }
   }, [user, join, current, joinLedger, setError])
+
   // 进入账本后清理 URL 上的 join 参数，避免刷新/返回时反复自动加入
   useEffect(() => {
     if (!current) return
@@ -74,16 +81,20 @@ export default function App() {
       history.replaceState(null, '', url)
     }
   }, [current])
+
   // 切换账本时关闭统计页
   useEffect(() => {
     if (!current) setShowStats(false)
   }, [current])
+
   const handleCreate = async (name: string, nickname: string) => {
     await createLedger(name, nickname)
   }
+
   const handleOpen = (ledgerId: string) => {
     openLedger(ledgerId).catch((e) => setError(e instanceof Error ? e.message : '打开失败'))
   }
+
   // 登录/注册成功后回调：如果带着 join 参数，直接自动加入账本
   const handleAuthSuccess = async () => {
     // 等待 auth 单例实例的 currentUser 就绪（登录态同步可能有极短延迟）
@@ -105,14 +116,17 @@ export default function App() {
       }
     }
   }
+
   const handleRename = async (name: string) => {
     if (!current) return
     await renameLedger(name)
   }
+
   const handleRemoveMember = async (memberId: string) => {
     if (!current) return
     await removeMember(memberId)
   }
+
   const handleRegenerate = async () => {
     if (!current) return
     await regenerateInviteCode()
@@ -121,6 +135,7 @@ export default function App() {
     if (!current) return
     await updateNickname(nickname)
   }
+
   const handleUpdateCats = async (cats: string[]) => {
     if (!current) return
     await updateCategories(cats)
@@ -129,6 +144,7 @@ export default function App() {
     if (!current) return
     await deleteLedger()
   }
+
   // —— 未登录：显示登录注册页（如果有 join 参数，提示登录后自动加入） ——
   if (!user) {
     return (
@@ -142,6 +158,7 @@ export default function App() {
       </div>
     )
   }
+
   // —— 已登录：正常页面路由 ——
   let page
   if (current && showStats) {
@@ -166,6 +183,7 @@ export default function App() {
   } else {
     page = <HomePage myLedgers={myLedgers} onCreate={handleCreate} onOpen={handleOpen} />
   }
+
   return (
     <div className="app-frame">
       {page}

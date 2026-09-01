@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { IconSend } from './Icons'
+
 interface Props {
   onSend: (text: string) => Promise<void>
   disabled?: boolean
 }
+
 export default function EntryInput({ onSend, disabled }: Props) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+
   const submit = async () => {
     const t = text.trim()
     if (!t || sending) return
@@ -20,6 +23,7 @@ export default function EntryInput({ onSend, disabled }: Props) {
       setSending(false)
     }
   }
+
   return (
     <div className="input-bar">
       <input

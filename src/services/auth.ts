@@ -6,12 +6,15 @@
  *
  * 自动切换：配置了 VITE_CLOUDBASE_ENV 用 cloudbase，否则用 mock。
  */
+
 import { getCloudAuth } from './cloudbase-app'
+
 export interface AuthUser {
   uid: string
   email: string
   nickname: string
 }
+
 export interface AuthAPI {
   /** 发送邮箱验证码，返回 verificationId 和该邮箱是否已注册 */
   sendVerificationCode(email: string): Promise<{ verificationId: string; isUser: boolean }>
@@ -30,17 +33,20 @@ export interface AuthAPI {
   /** 更新昵称 */
   updateNickname(nickname: string): Promise<void>
 }
+
 // ============================================================
 // Mock 实现（localStorage）
 // ============================================================
 const K_USERS = 'jz_auth_users'
 const K_CURRENT = 'jz_auth_current'
+
 interface MockUserRecord {
   uid: string
   email: string
   password: string
   nickname: string
 }
+
 function loadUsers(): MockUserRecord[] {
   try {
     return JSON.parse(localStorage.getItem(K_USERS) || '[]') as MockUserRecord[]
@@ -48,12 +54,15 @@ function loadUsers(): MockUserRecord[] {
     return []
   }
 }
+
 function saveUsers(users: MockUserRecord[]): void {
   localStorage.setItem(K_USERS, JSON.stringify(users))
 }
+
 function toAuthUser(u: MockUserRecord): AuthUser {
   return { uid: u.uid, email: u.email, nickname: u.nickname }
 }
+
 // mock 模式登录态监听（同标签页内操作后手动触发 + 跨标签页 storage 事件）
 const mockListeners: Array<(user: AuthUser | null) => void> = []
 function notifyMockListeners() {
@@ -67,6 +76,7 @@ function notifyMockListeners() {
   })()
   mockListeners.forEach((cb) => cb(user))
 }
+
 const mockAuth: AuthAPI = {
   async sendVerificationCode(email) {
     // mock 模式：固定验证码 123456
@@ -96,6 +106,7 @@ const mockAuth: AuthAPI = {
     notifyMockListeners()
     return toAuthUser(user)
   },
+
   async signIn(email, password) {
     const users = loadUsers()
     const user = users.find((u) => u.email === email.trim().toLowerCase())
@@ -105,10 +116,12 @@ const mockAuth: AuthAPI = {
     notifyMockListeners()
     return toAuthUser(user)
   },
+
   async signOut() {
     localStorage.removeItem(K_CURRENT)
     notifyMockListeners()
   },
+
   getCurrentUser() {
     try {
       const raw = localStorage.getItem(K_CURRENT)
@@ -117,6 +130,7 @@ const mockAuth: AuthAPI = {
       return null
     }
   },
+
   onAuthStateChanged(cb) {
     // 同标签页内操作后手动触发
     mockListeners.push(cb)
@@ -133,6 +147,7 @@ const mockAuth: AuthAPI = {
       window.removeEventListener('storage', handler)
     }
   },
+
   async updateNickname(nickname) {
     const current = this.getCurrentUser()
     if (!current) throw new Error('未登录')
@@ -146,9 +161,11 @@ const mockAuth: AuthAPI = {
     }
   },
 }
+
 // ============================================================
 // CloudBase 实现（使用共享的 app 实例，确保登录态共享）
 // ============================================================
+
 function cbUserToAuthUser(cbUser: any): AuthUser | null {
   if (!cbUser) return null
   return {
@@ -157,6 +174,7 @@ function cbUserToAuthUser(cbUser: any): AuthUser | null {
     nickname: cbUser.nickName || cbUser.nickname || '我',
   }
 }
+
 const cloudbaseAuth: AuthAPI = {
   async sendVerificationCode(email) {
     const auth = getCloudAuth()
@@ -189,6 +207,7 @@ const cloudbaseAuth: AuthAPI = {
     if (!user) throw new Error('注册后获取用户信息失败')
     return cbUserToAuthUser(user)!
   },
+
   async signIn(email, password) {
     const auth = getCloudAuth()
     await auth.signIn({ username: email.trim().toLowerCase(), password })
@@ -196,10 +215,12 @@ const cloudbaseAuth: AuthAPI = {
     if (!user) throw new Error('登录后获取用户信息失败')
     return cbUserToAuthUser(user)!
   },
+
   async signOut() {
     const auth = getCloudAuth()
     await auth.signOut()
   },
+
   getCurrentUser() {
     try {
       const auth = getCloudAuth()
@@ -209,11 +230,20 @@ const cloudbaseAuth: AuthAPI = {
       return null
     }
   },
+
   onAuthStateChanged(cb) {
     const auth = getCloudAuth()
-    // CloudBase 的登录态监听 API（返回 Promise，不提供取消函数）
-    auth.onLoginStateChanged((state: any) => {
-      const user = auth.currentUser
+    // CloudBase 的登录态监听 API（返回 Promise，不提供取消函数）。
+    // 注意：onLoginStateChanged 触发 sign_in 时 auth.currentUser 可能尚未就绪
+    //（用户信息异步加载中），因此在这里轮询等待 currentUser 到位后再回调，
+    // 否则上层收不到“已登录”事件，导致登录后不刷新账本列表。
+    auth.onLoginStateChanged(async (state: any) => {
+      let user: any = null
+      for (let i = 0; i < 25; i++) {
+        user = auth.currentUser
+        if (user) break
+        await new Promise((r) => setTimeout(r, 200))
+      }
       if (state && user) {
         const mapped = cbUserToAuthUser(user)
         if (mapped) cb(mapped)
@@ -224,14 +254,18 @@ const cloudbaseAuth: AuthAPI = {
     // SDK 不提供取消函数，返回空函数
     return () => {}
   },
+
   async updateNickname(nickname) {
     const auth = getCloudAuth()
     await auth.updateUserBasicInfo({ nickname: nickname.trim() })
   },
 }
+
 // ============================================================
 // 自动切换导出
 // ============================================================
 const ENV_ID = (import.meta.env.VITE_CLOUDBASE_ENV as string | undefined) || ''
+
 export const auth: AuthAPI = ENV_ID ? cloudbaseAuth : mockAuth
+
 export const isCloudMode = !!ENV_ID

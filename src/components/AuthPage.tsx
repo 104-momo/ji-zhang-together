@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { auth } from '../services/auth'
 import { IconWallet } from './Icons'
+
 interface Props {
   onSuccess: () => void
   joinHint?: string
 }
+
 type Mode = 'login' | 'register'
+
 export default function AuthPage({ onSuccess, joinHint }: Props) {
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
@@ -18,11 +21,13 @@ export default function AuthPage({ onSuccess, joinHint }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
   }, [])
+
   const startCountdown = () => {
     setCountdown(60)
     if (timerRef.current) clearInterval(timerRef.current)
@@ -36,6 +41,7 @@ export default function AuthPage({ onSuccess, joinHint }: Props) {
       })
     }, 1000)
   }
+
   const sendCode = async () => {
     setError(null)
     if (!email.trim()) {
@@ -57,6 +63,7 @@ export default function AuthPage({ onSuccess, joinHint }: Props) {
       setBusy(false)
     }
   }
+
   const submit = async () => {
     setError(null)
     if (!email.trim()) {
@@ -109,6 +116,7 @@ export default function AuthPage({ onSuccess, joinHint }: Props) {
       setBusy(false)
     }
   }
+
   return (
     <div className="page home">
       <div className="home-hero">
@@ -147,6 +155,7 @@ export default function AuthPage({ onSuccess, joinHint }: Props) {
             onClick={() => { setMode('register'); setError(null) }}
           >注册</button>
         </div>
+
         <div className="field">
           <label>邮箱</label>
           <input
@@ -155,6 +164,7 @@ export default function AuthPage({ onSuccess, joinHint }: Props) {
             autoComplete="email"
           />
         </div>
+
         {mode === 'register' ? (
           <div className="field">
             <label>邮箱验证码</label>
@@ -181,6 +191,7 @@ export default function AuthPage({ onSuccess, joinHint }: Props) {
             </div>
           </div>
         ) : null}
+
         <div className="field">
           <label>密码</label>
           <input
@@ -190,6 +201,7 @@ export default function AuthPage({ onSuccess, joinHint }: Props) {
             autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
           />
         </div>
+
         {mode === 'register' ? (
           <div className="field">
             <label>昵称</label>
@@ -199,11 +211,13 @@ export default function AuthPage({ onSuccess, joinHint }: Props) {
             />
           </div>
         ) : null}
+
         {error ? (
           <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12, padding: '8px 12px', background: 'var(--danger-soft)', borderRadius: 'var(--r-control)' }}>
             {error}
           </div>
         ) : null}
+
         <button className="btn-primary btn-block" onClick={() => void submit()} disabled={busy}>
           {busy ? '请稍候…' : mode === 'login' ? '登录' : '注册并登录'}
         </button>

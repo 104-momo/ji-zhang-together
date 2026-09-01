@@ -2,18 +2,22 @@ import { useState } from 'react'
 import type { Ledger } from '../types'
 import { IconWallet, IconChevronDown, IconSignOut } from './Icons'
 import { auth } from '../services/auth'
+
 interface Props {
   myLedgers: Ledger[]
   onCreate: (name: string, nickname: string) => Promise<void>
   onOpen: (ledgerId: string) => void
 }
+
 export default function HomePage({ myLedgers, onCreate, onOpen }: Props) {
   const [name, setName] = useState('')
   const [nickname, setNickname] = useState(auth.getCurrentUser()?.nickname || '')
   const [busy, setBusy] = useState(false)
+
   const handleSignOut = async () => {
     await auth.signOut()
   }
+
   const submit = async () => {
     if (!nickname.trim()) return
     setBusy(true)
@@ -23,6 +27,7 @@ export default function HomePage({ myLedgers, onCreate, onOpen }: Props) {
       setBusy(false)
     }
   }
+
   return (
     <div className="page home">
       <div className="home-hero">
@@ -34,6 +39,7 @@ export default function HomePage({ myLedgers, onCreate, onOpen }: Props) {
         </div>
         <p className="home-tagline">像聊天一样记账，说一句话，自动变成一笔账。</p>
       </div>
+
       <div className="card">
         <h2>建一本新账</h2>
         <div className="field">
@@ -53,6 +59,7 @@ export default function HomePage({ myLedgers, onCreate, onOpen }: Props) {
           创建并进入
         </button>
       </div>
+
       {myLedgers.length > 0 ? (
         <>
           <div className="home-section-title">
@@ -74,6 +81,7 @@ export default function HomePage({ myLedgers, onCreate, onOpen }: Props) {
           ))}
         </>
       ) : null}
+
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8, marginBottom: 16 }}>
         <button
           onClick={() => void handleSignOut()}

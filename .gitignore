@@ -6,12 +6,14 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
 node_modules
 dist
 dist-ssr
 *.local
 .env
 draft_da9ed65e_folder/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

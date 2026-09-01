@@ -3,28 +3,34 @@ import type { Entry, Member } from '../types'
 import { CATEGORIES } from '../types'
 import { CATEGORY_COLOR_VAR, avatarColor } from '../utils/colors'
 import { IconArrowLeft } from './Icons'
+
 interface Props {
   entries: Entry[]
   members: Member[]
   onBack: () => void
 }
+
 interface CatStat {
   category: string
   amount: number
   count: number
   percent: number
 }
+
 function getMonth(ts: number): string {
   const d = new Date(ts)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
+
 export default function StatsPage({ entries, members, onBack }: Props) {
   const [filterMember, setFilterMember] = useState<string>('all')
   const [filterMonth, setFilterMonth] = useState<string>('all')
+
   const active = useMemo(
     () => entries.filter((e) => !(e.amount === 0 && (e.note || '').includes('【已删除】'))),
     [entries],
   )
+
   // 合并正式成员 + 账目中出现过的成员（覆盖演示成员/已移除成员的历史账目）
   const allMembers = useMemo<Member[]>(() => {
     const map = new Map<string, Member>()
@@ -36,18 +42,22 @@ export default function StatsPage({ entries, members, onBack }: Props) {
     }
     return Array.from(map.values())
   }, [members, active])
+
   const months = useMemo(() => {
     const set = new Set<string>()
     for (const e of active) set.add(getMonth(e.createdAt))
     return Array.from(set).sort((a, b) => b.localeCompare(a))
   }, [active])
+
   const filtered = useMemo(() => {
     let list = active
     if (filterMember !== 'all') list = list.filter((e) => e.memberId === filterMember)
     if (filterMonth !== 'all') list = list.filter((e) => getMonth(e.createdAt) === filterMonth)
     return list
   }, [active, filterMember, filterMonth])
+
   const total = filtered.reduce((s, e) => s + e.amount, 0)
+
   const stats = useMemo<CatStat[]>(() => {
     const map = new Map<string, { amount: number; count: number }>()
     for (const e of filtered) {
@@ -67,6 +77,7 @@ export default function StatsPage({ entries, members, onBack }: Props) {
     list.sort((a, b) => b.amount - a.amount)
     return list
   }, [filtered, total])
+
   const memberStats = useMemo(() => {
     const map = new Map<string, { amount: number; count: number }>()
     for (const e of filtered) {
@@ -80,8 +91,10 @@ export default function StatsPage({ entries, members, onBack }: Props) {
       .filter((x) => x.count > 0)
       .sort((a, b) => b.amount - a.amount)
   }, [filtered, allMembers])
+
   const monthLabel = filterMonth === 'all' ? '全部' : filterMonth
   const avgBase = memberStats.length > 0 ? memberStats.length : 1
+
   return (
     <div className="page stats">
       <div className="stats-header">
@@ -90,6 +103,7 @@ export default function StatsPage({ entries, members, onBack }: Props) {
         </button>
         <span className="stats-title">统计</span>
       </div>
+
       <div className="stats-summary">
         <div className="stats-card">
           <div className="stats-label">{monthLabel}支出</div>
@@ -104,6 +118,7 @@ export default function StatsPage({ entries, members, onBack }: Props) {
           <div className="stats-value">¥{(total / avgBase).toFixed(2)}</div>
         </div>
       </div>
+
       <div className="stats-filter">
         <div className="stats-filter-item">
           <span className="stats-filter-label">月份</span>
@@ -124,6 +139,7 @@ export default function StatsPage({ entries, members, onBack }: Props) {
           </select>
         </div>
       </div>
+
       <div className="stats-section">
         <div className="stats-section-title">分类占比</div>
         {stats.length === 0 ? (
@@ -152,6 +168,7 @@ export default function StatsPage({ entries, members, onBack }: Props) {
           </div>
         )}
       </div>
+
       <div className="stats-section" style={{ paddingBottom: 28 }}>
         <div className="stats-section-title">成员支出</div>
         {memberStats.length === 0 ? (

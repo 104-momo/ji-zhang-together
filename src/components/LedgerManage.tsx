@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Ledger, Member } from '../types'
 import { CATEGORIES } from '../types'
 import { IconX } from './Icons'
+
 interface Props {
   ledger: Ledger
   members: Member[]
@@ -15,6 +16,7 @@ interface Props {
   onDeleteLedger: () => Promise<void>
   onClose: () => void
 }
+
 export default function LedgerManage({
   ledger,
   members,
@@ -34,10 +36,12 @@ export default function LedgerManage({
   const [myNick, setMyNick] = useState(() => members.find((m) => m.id === myMemberId)?.nickname || '')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+
   const showMsg = (m: string) => {
     setMsg(m)
     setTimeout(() => setMsg(null), 2500)
   }
+
   const handleRename = async () => {
     if (!name.trim() || busy) return
     setBusy(true)
@@ -49,6 +53,7 @@ export default function LedgerManage({
     }
     setBusy(false)
   }
+
   const handleRemove = async (memberId: string) => {
     if (busy) return
     if (!confirm('确定移除该成员？其历史账目保留。')) return
@@ -61,6 +66,7 @@ export default function LedgerManage({
     }
     setBusy(false)
   }
+
   const handleRegenerate = async () => {
     if (busy) return
     if (!confirm('重新生成邀请码后，旧链接将失效。确定？')) return
@@ -73,6 +79,7 @@ export default function LedgerManage({
     }
     setBusy(false)
   }
+
   const handleUpdateNickname = async () => {
     if (!myNick.trim() || busy) return
     setBusy(true)
@@ -90,9 +97,11 @@ export default function LedgerManage({
     setCats([...cats, c])
     setNewCat('')
   }
+
   const removeCat = (c: string) => {
     setCats(cats.filter((x) => x !== c))
   }
+
   const handleSaveCats = async () => {
     if (busy) return
     setBusy(true)
@@ -116,6 +125,7 @@ export default function LedgerManage({
     }
     setBusy(false)
   }
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -144,6 +154,7 @@ export default function LedgerManage({
                   <button className="btn-primary btn-sm" onClick={handleRename} disabled={busy}>保存</button>
                 </div>
               </div>
+
               <div className="manage-section">
                 <div className="manage-title">成员（{members.length} 人）</div>
                 <div className="member-list">
@@ -165,6 +176,7 @@ export default function LedgerManage({
                   ))}
                 </div>
               </div>
+
               <div className="manage-section">
                 <div className="manage-title">邀请链接</div>
                 <div className="manage-row">
@@ -172,6 +184,7 @@ export default function LedgerManage({
                   <button className="btn-warn btn-sm" onClick={handleRegenerate} disabled={busy}>重新生成</button>
                 </div>
               </div>
+
               <div className="manage-section">
                 <div className="manage-title">分类管理</div>
                 <div className="cat-manage-list">

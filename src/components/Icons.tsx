@@ -1,9 +1,11 @@
 import type { SVGProps } from 'react'
+
 /**
  * Phosphor regular 图标（MIT，viewBox 0 0 256 256，fill=currentColor）
  * 全应用统一一种字重，尺寸通过 props.width/height 或 CSS 控制。
  */
 type IconProps = SVGProps<SVGSVGElement> & { size?: number }
+
 function base({ size = 20, ...rest }: IconProps) {
   return {
     width: size,
@@ -16,6 +18,7 @@ function base({ size = 20, ...rest }: IconProps) {
     ...rest,
   } as SVGProps<SVGSVGElement>
 }
+
 export function IconArrowLeft(p: IconProps) {
   return (
     <svg {...base(p)}>
@@ -23,6 +26,7 @@ export function IconArrowLeft(p: IconProps) {
     </svg>
   )
 }
+
 export function IconPlus(p: IconProps) {
   return (
     <svg {...base(p)}>
@@ -30,6 +34,7 @@ export function IconPlus(p: IconProps) {
     </svg>
   )
 }
+
 export function IconGear(p: IconProps) {
   return (
     <svg {...base(p)}>
@@ -37,6 +42,7 @@ export function IconGear(p: IconProps) {
     </svg>
   )
 }
+
 export function IconChart(p: IconProps) {
   return (
     <svg {...base(p)}>
@@ -44,6 +50,7 @@ export function IconChart(p: IconProps) {
     </svg>
   )
 }
+
 export function IconSend(p: IconProps) {
   return (
     <svg {...base(p)}>
@@ -51,6 +58,7 @@ export function IconSend(p: IconProps) {
     </svg>
   )
 }
+
 export function IconPencil(p: IconProps) {
   return (
     <svg {...base(p)}>
@@ -58,6 +66,7 @@ export function IconPencil(p: IconProps) {
     </svg>
   )
 }
+
 export function IconTrash(p: IconProps) {
   return (
     <svg {...base(p)}>
@@ -65,6 +74,7 @@ export function IconTrash(p: IconProps) {
     </svg>
   )
 }
+
 export function IconX(p: IconProps) {
   return (
     <svg {...base(p)}>
@@ -72,6 +82,7 @@ export function IconX(p: IconProps) {
     </svg>
   )
 }
+
 export function IconUsers(p: IconProps) {
   return (
     <svg {...base(p)}>
@@ -79,6 +90,7 @@ export function IconUsers(p: IconProps) {
     </svg>
   )
 }
+
 export function IconWallet(p: IconProps) {
   return (
     <svg {...base(p)}>
@@ -86,6 +98,7 @@ export function IconWallet(p: IconProps) {
     </svg>
   )
 }
+
 export function IconChevronDown(p: IconProps) {
   return (
     <svg {...base(p)}>
@@ -93,6 +106,7 @@ export function IconChevronDown(p: IconProps) {
     </svg>
   )
 }
+
 export function IconSignOut(p: IconProps) {
   return (
     <svg {...base(p)}>

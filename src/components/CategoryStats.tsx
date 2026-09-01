@@ -3,17 +3,21 @@ import type { Category, Entry } from '../types'
 import { CATEGORIES } from '../types'
 import { CATEGORY_COLOR_VAR } from '../utils/colors'
 import { IconChart, IconChevronDown } from './Icons'
+
 interface Props {
   entries: Entry[]
 }
+
 interface CatStat {
   category: Category
   amount: number
   count: number
   percent: number
 }
+
 export default function CategoryStats({ entries }: Props) {
   const [open, setOpen] = useState(false)
+
   const stats = useMemo<CatStat[]>(() => {
     const active = entries.filter((e) => !(e.amount === 0 && (e.note || '').includes('【已删除】')))
     const total = active.reduce((s, e) => s + e.amount, 0)
@@ -34,8 +38,11 @@ export default function CategoryStats({ entries }: Props) {
     list.sort((a, b) => b.amount - a.amount)
     return list
   }, [entries])
+
   const total = stats.reduce((s, c) => s + c.amount, 0)
+
   if (stats.length === 0) return null
+
   return (
     <div className="cat-stats">
       <button className="cat-toggle" onClick={() => setOpen((v) => !v)}>
