@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Entry, Member } from '../types'
 import { CATEGORIES } from '../types'
 import { CATEGORY_COLOR_VAR, avatarColor } from '../utils/colors'
-import { IconArrowLeft } from './Icons'
+import { IconArrowLeft, IconChevronDown } from './Icons'
 
 interface Props {
   entries: Entry[]
@@ -32,10 +32,17 @@ function formatDayLabel(key: string): string {
   const w = WEEK_LABEL[new Date(Y, M - 1, D).getDay()]
   return `${String(M).padStart(2, '0')}-${String(D).padStart(2, '0')} ${w}`
 }
+function formatHM(ts: number): string {
+  const d = new Date(ts)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
 
 export default function StatsPage({ entries, members, onBack }: Props) {
   const [filterMember, setFilterMember] = useState<string>('all')
   const [filterMonth, setFilterMonth] = useState<string>('all')
+  const todayKey = getDayKey(Date.now())
+  // 手风琴：默认只展开“今天”，其余日期折叠
+  const [openDay, setOpenDay] = useState<string>(todayKey)
 
   const active = useMemo(
     () => entries.filter((e) => !(e.amount === 0 && (e.note || '').includes('【已删除】'))),
@@ -120,6 +127,16 @@ export default function StatsPage({ entries, members, onBack }: Props) {
   }, [filtered])
   const dayMax = dayStats.reduce((m, d) => Math.max(m, d.amount), 0)
   const dayAvg = dayStats.length > 0 ? total / dayStats.length : 0
+  // 筛选/数据变化后，若当前展开日已不在列表，则默认展开今天，否则展开最近一天
+  useEffect(() => {
+    setOpenDay((cur) => {
+      if (dayStats.some((d) => d.day === cur)) return cur
+      if (dayStats.some((d) => d.day === todayKey)) return todayKey
+      return dayStats[0]?.day ?? ''
+    })
+  }, [dayStats, todayKey])
+  const entriesOfDay = (day: string): Entry[] =>
+    filtered.filter((e) => getDayKey(e.createdAt) === day).sort((a, b) => a.createdAt - b.createdAt)
   const avgBase = memberStats.length > 0 ? memberStats.length : 1
 
   return (
@@ -177,22 +194,48 @@ export default function StatsPage({ entries, members, onBack }: Props) {
         {dayStats.length === 0 ? (
           <div className="stats-empty">该条件下暂无数据</div>
         ) : (
-          <div className="stats-day-list">
-            {dayStats.map((d) => (
-              <div key={d.day} className="stats-cat-row">
-                <div className="stats-day-label">{formatDayLabel(d.day)}</div>
-                <div className="stats-cat-bar-wrap">
-                  <div
-                    className="stats-day-bar"
-                    style={{ width: `${Math.max((d.amount / (dayMax || 1)) * 100, 4)}%` }}
-                  />
+          <div className="stats-day-cards">
+            {dayStats.map((d) => {
+              const open = d.day === openDay
+              return (
+                <div key={d.day} className={`stats-day-card${open ? ' is-open' : ''}`}>
+                  <button
+                    type="button"
+                    className="stats-day-card-head"
+                    onClick={() => setOpenDay(open ? '' : d.day)}
+                  >
+                    <span className="stats-day-card-date">
+                      {formatDayLabel(d.day)}
+                      {d.day === todayKey && <em className="stats-day-today">今天</em>}
+                    </span>
+                    <span className="stats-day-mini">
+                      <i style={{ width: `${(d.amount / (dayMax || 1)) * 100}%` }} />
+                    </span>
+                    <span className="stats-day-card-sum">
+                      ¥{d.amount.toFixed(2)}
+                      <small>{d.count}笔</small>
+                    </span>
+                    <IconChevronDown size={16} className="stats-day-chev" />
+                  </button>
+                  {open && (
+                    <div className="stats-day-detail">
+                      {entriesOfDay(d.day).map((e) => (
+                        <div key={e.id} className="stats-day-item">
+                          <span className="stats-day-item-time">{formatHM(e.createdAt)}</span>
+                          <span
+                            className="stats-day-item-dot"
+                            style={{ background: CATEGORY_COLOR_VAR[e.category as keyof typeof CATEGORY_COLOR_VAR] ?? 'var(--c-other)' }}
+                          />
+                          <span className="stats-day-item-text">{e.rawText}</span>
+                          <span className="stats-day-item-by">{e.nickname}</span>
+                          <span className="stats-day-item-amt">¥{e.amount.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="stats-cat-amount">
-                  <span className="stats-cat-money">¥{d.amount.toFixed(2)}</span>
-                  <span className="stats-cat-count">{d.count}笔</span>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

@@ -1147,17 +1147,12 @@ select {
   border-radius: var(--r-card);
 }
 .stats-cat-list,
-.stats-member-list,
-.stats-day-list {
+.stats-member-list {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
   padding: 14px;
   box-shadow: var(--shadow-card);
-}
-.stats-day-list {
-  max-height: 320px;
-  overflow-y: auto;
 }
 .stats-day-head {
   display: flex;
@@ -1169,19 +1164,139 @@ select {
   font-weight: 500;
   color: var(--ink-3);
 }
-.stats-day-label {
-  width: 92px;
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink-2);
-  white-space: nowrap;
+/* —— 每日支出：手风琴折叠卡片 —— */
+.stats-day-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.stats-day-bar {
+.stats-day-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transition: border-color 0.18s;
+}
+.stats-day-card.is-open {
+  border-color: var(--accent);
+}
+.stats-day-card-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+.stats-day-card-date {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-1);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.stats-day-today {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--r-pill);
+  padding: 1px 7px;
+}
+.stats-day-mini {
+  flex: 1;
+  height: 6px;
+  min-width: 30px;
+  background: var(--surface-3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.stats-day-mini > i {
+  display: block;
   height: 100%;
-  border-radius: 4px;
+  border-radius: 3px;
   background: linear-gradient(90deg, var(--accent), #3aa687);
   transition: width 0.4s var(--ease);
+}
+.stats-day-card-sum {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink-1);
+  white-space: nowrap;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+  flex-shrink: 0;
+}
+.stats-day-card-sum small {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.stats-day-chev {
+  color: var(--ink-3);
+  flex-shrink: 0;
+  transition: transform 0.22s var(--ease);
+}
+.stats-day-card.is-open .stats-day-chev {
+  transform: rotate(180deg);
+}
+.stats-day-detail {
+  border-top: 1px solid var(--line);
+  padding: 6px 14px 10px;
+}
+.stats-day-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.stats-day-item:last-child {
+  border-bottom: none;
+}
+.stats-day-item-time {
+  color: var(--ink-3);
+  width: 38px;
+  flex-shrink: 0;
+}
+.stats-day-item-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.stats-day-item-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stats-day-item-by {
+  color: var(--ink-3);
+  font-size: 11px;
+  flex-shrink: 0;
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stats-day-item-amt {
+  font-weight: 700;
+  color: var(--ink-1);
+  flex-shrink: 0;
 }
 .stats-cat-row {
   display: flex;
