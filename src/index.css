@@ -1147,12 +1147,41 @@ select {
   border-radius: var(--r-card);
 }
 .stats-cat-list,
-.stats-member-list {
+.stats-member-list,
+.stats-day-list {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-card);
   padding: 14px;
   box-shadow: var(--shadow-card);
+}
+.stats-day-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.stats-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.stats-section-hint {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.stats-day-label {
+  width: 92px;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.stats-day-bar {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), #3aa687);
+  transition: width 0.4s var(--ease);
 }
 .stats-cat-row {
   display: flex;

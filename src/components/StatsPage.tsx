@@ -21,6 +21,17 @@ function getMonth(ts: number): string {
   const d = new Date(ts)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
+// 按本地日聚合，口径与月份筛选(getMonth)一致，均取 createdAt
+function getDayKey(ts: number): string {
+  const d = new Date(ts)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const WEEK_LABEL = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+function formatDayLabel(key: string): string {
+  const [Y, M, D] = key.split('-').map(Number)
+  const w = WEEK_LABEL[new Date(Y, M - 1, D).getDay()]
+  return `${String(M).padStart(2, '0')}-${String(D).padStart(2, '0')} ${w}`
+}
 
 export default function StatsPage({ entries, members, onBack }: Props) {
   const [filterMember, setFilterMember] = useState<string>('all')
@@ -93,6 +104,22 @@ export default function StatsPage({ entries, members, onBack }: Props) {
   }, [filtered, allMembers])
 
   const monthLabel = filterMonth === 'all' ? '全部' : filterMonth
+  // 每日支出：按本地日聚合，最近的一天在最上
+  const dayStats = useMemo(() => {
+    const map = new Map<string, { amount: number; count: number }>()
+    for (const e of filtered) {
+      const k = getDayKey(e.createdAt)
+      const cur = map.get(k) ?? { amount: 0, count: 0 }
+      cur.amount += e.amount
+      cur.count += 1
+      map.set(k, cur)
+    }
+    return Array.from(map.entries())
+      .map(([day, v]) => ({ day, amount: v.amount, count: v.count }))
+      .sort((a, b) => b.day.localeCompare(a.day))
+  }, [filtered])
+  const dayMax = dayStats.reduce((m, d) => Math.max(m, d.amount), 0)
+  const dayAvg = dayStats.length > 0 ? total / dayStats.length : 0
   const avgBase = memberStats.length > 0 ? memberStats.length : 1
 
   return (
@@ -140,6 +167,35 @@ export default function StatsPage({ entries, members, onBack }: Props) {
         </div>
       </div>
 
+      <div className="stats-section">
+        <div className="stats-section-title stats-day-head">
+          每日支出
+          {dayStats.length > 0 && (
+            <span className="stats-section-hint">日均 ¥{dayAvg.toFixed(2)} · {dayStats.length} 天有记录</span>
+          )}
+        </div>
+        {dayStats.length === 0 ? (
+          <div className="stats-empty">该条件下暂无数据</div>
+        ) : (
+          <div className="stats-day-list">
+            {dayStats.map((d) => (
+              <div key={d.day} className="stats-cat-row">
+                <div className="stats-day-label">{formatDayLabel(d.day)}</div>
+                <div className="stats-cat-bar-wrap">
+                  <div
+                    className="stats-day-bar"
+                    style={{ width: `${Math.max((d.amount / (dayMax || 1)) * 100, 4)}%` }}
+                  />
+                </div>
+                <div className="stats-cat-amount">
+                  <span className="stats-cat-money">¥{d.amount.toFixed(2)}</span>
+                  <span className="stats-cat-count">{d.count}笔</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="stats-section">
         <div className="stats-section-title">分类占比</div>
         {stats.length === 0 ? (
