@@ -112,9 +112,9 @@ function validateLen(val, max, field) {
 }
 /**
  * 把 ExecutePGSql 返回的 PG 时间字符串安全转成毫秒时间戳。
- * OpenAPI 返回形如 "2026-08-31 16:01:06.988206 +0800 CST"：
- * 结尾的时区缩写(CST/UTC...)在 JS 引擎里有歧义会被误解析，
- * 这里只保留数字时区偏移，输出标准 ISO（YYYY-MM-DDTHH:mm:ss+08:00）。
+ * CloudBase PG（时区 PRC）实际返回形如 "2026-09-02 16:53:51.988075+08"：
+ * 偏移只到小时、没有分钟；也兼容 " +0800 CST" / "+08:00" / "Z" 等写法。
+ * 只按数字偏移换算成绝对 UTC 毫秒，忽略有歧义的时区缩写。
  */
 function pgTimeToMs(v) {
   if (v === null || v === undefined || v === '') return Date.now()
@@ -123,7 +123,8 @@ function pgTimeToMs(v) {
   const s = String(v).trim()
   // 手动拆解，避免老版本 Node 解析 "6位微秒+时区偏移" 不一致：
   // 形如 2026-08-31 14:04:56.826722 +0800 CST（结尾时区缩写忽略，只用数字偏移）
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:\s*([+-]\d{2}):?(\d{2}))?/)
+  // 偏移分钟可选：兼容 CloudBase PG 实际返回的 "+08"（无分钟），以及 "+0800"/"+08:00"
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:\s*([+-]\d{2})(?::?(\d{2}))?)?/)
   if (!m) {
     const t = Date.parse(s)
     return Number.isNaN(t) ? Date.now() : t
