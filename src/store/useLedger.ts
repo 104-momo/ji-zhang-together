@@ -41,11 +41,23 @@ export function useLedger() {
   const identityRef = useRef<Record<string, IdentityRecord>>(loadIdentity())
   // 刷新“我参与的所有账本”：云端按登录 uid 查询（跨设备可靠），不再依赖本地缓存
   const refreshMyLedgers = useCallback(async () => {
-    try {
-      const ledgers = await api.listLedgersByUid()
-      setMyLedgers(ledgers)
-    } catch {
-      setMyLedgers([])
+    // 登录态恢复时 accessToken 可能稍晚才就绪，一次失败就置空会让首页永久显示“没有账本”。
+    // 这里做有限重试；明确“未登录”时不清空，交给 onAuthStateChanged 在登录后再拉。
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const ledgers = await api.listLedgersByUid()
+        setMyLedgers(ledgers)
+        return
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        const notAuthed = /未登录|请先登录|登录态无效/.test(msg)
+        if (notAuthed) return // 等登录态就绪事件再触发，不主动清空
+        if (attempt === 2) {
+          setMyLedgers([])
+          return
+        }
+        await new Promise((r) => setTimeout(r, 800))
+      }
     }
   }, [])
 
