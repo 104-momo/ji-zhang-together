@@ -39,8 +39,10 @@ function formatHM(ts: number): string {
 
 export default function StatsPage({ entries, members, onBack }: Props) {
   const [filterMember, setFilterMember] = useState<string>('all')
-  const [filterMonth, setFilterMonth] = useState<string>('all')
   const todayKey = getDayKey(Date.now())
+  // 整页时间范围：默认只看“今天”，主动切换到月/年/全部后才扩大统计口径。
+  // 取值：day:YYYY-MM-DD（默认今天）/ month:YYYY-MM / year:YYYY / all
+  const [range, setRange] = useState<string>(`day:${todayKey}`)
   // 每日统计：页面只展示选中的某一天（默认今天），查其他天通过“日期”下拉切换
   const [selDay, setSelDay] = useState<string>(todayKey)
 
@@ -67,12 +69,26 @@ export default function StatsPage({ entries, members, onBack }: Props) {
     return Array.from(set).sort((a, b) => b.localeCompare(a))
   }, [active])
 
+  const years = useMemo(() => {
+    const set = new Set<string>()
+    for (const e of active) set.add(String(new Date(e.createdAt).getFullYear()))
+    return Array.from(set).sort((a, b) => b.localeCompare(a))
+  }, [active])
+
   const filtered = useMemo(() => {
     let list = active
     if (filterMember !== 'all') list = list.filter((e) => e.memberId === filterMember)
-    if (filterMonth !== 'all') list = list.filter((e) => getMonth(e.createdAt) === filterMonth)
+    if (range !== 'all') {
+      const [kind, val] = range.split(':')
+      list = list.filter((e) => {
+        if (kind === 'day') return getDayKey(e.createdAt) === val
+        if (kind === 'month') return getMonth(e.createdAt) === val
+        if (kind === 'year') return String(new Date(e.createdAt).getFullYear()) === val
+        return true
+      })
+    }
     return list
-  }, [active, filterMember, filterMonth])
+  }, [active, filterMember, range])
 
   const total = filtered.reduce((s, e) => s + e.amount, 0)
 
@@ -110,7 +126,14 @@ export default function StatsPage({ entries, members, onBack }: Props) {
       .sort((a, b) => b.amount - a.amount)
   }, [filtered, allMembers])
 
-  const monthLabel = filterMonth === 'all' ? '全部' : filterMonth
+  const rangeLabel = (() => {
+    if (range === 'all') return '全部'
+    const [kind, val] = range.split(':')
+    if (kind === 'day') return val === todayKey ? '今日' : val.slice(5).replace('-', '/')
+    if (kind === 'year') return `${val}年`
+    const [, M] = val.split('-')
+    return `${Number(M)}月`
+  })()
   // 每日支出：按本地日聚合，最近的一天在最上
   const dayStats = useMemo(() => {
     const map = new Map<string, { amount: number; count: number }>()
@@ -128,12 +151,17 @@ export default function StatsPage({ entries, members, onBack }: Props) {
   const dayAvg = dayStats.length > 0 ? total / dayStats.length : 0
   // 筛选/数据变化后，若当前选中日已不在列表，则默认选今天，否则选最近一天
   useEffect(() => {
+    // 当日模式：明细锁定为范围指定的那一天（默认即今天）
+    if (range.startsWith('day:')) {
+      setSelDay(range.slice(4))
+      return
+    }
     setSelDay((cur) => {
       if (dayStats.some((d) => d.day === cur)) return cur
       if (dayStats.some((d) => d.day === todayKey)) return todayKey
       return dayStats[0]?.day ?? ''
     })
-  }, [dayStats, todayKey])
+  }, [dayStats, todayKey, range])
   const curDay = dayStats.find((d) => d.day === selDay)
   const entriesOfDay = (day: string): Entry[] =>
     filtered.filter((e) => getDayKey(e.createdAt) === day).sort((a, b) => a.createdAt - b.createdAt)
@@ -150,7 +178,7 @@ export default function StatsPage({ entries, members, onBack }: Props) {
 
       <div className="stats-summary">
         <div className="stats-card">
-          <div className="stats-label">{monthLabel}支出</div>
+          <div className="stats-label">{rangeLabel}支出</div>
           <div className="stats-value">¥{total.toFixed(2)}</div>
         </div>
         <div className="stats-card">
@@ -165,12 +193,19 @@ export default function StatsPage({ entries, members, onBack }: Props) {
 
       <div className="stats-filter">
         <div className="stats-filter-item">
-          <span className="stats-filter-label">月份</span>
-          <select className="stats-select" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)}>
-            <option value="all">全部</option>
-            {months.map((m) => (
-              <option key={m} value={m}>{m}</option>
+          <span className="stats-filter-label">时间</span>
+          <select className="stats-select" value={range} onChange={(e) => setRange(e.target.value)}>
+            <option value={`day:${todayKey}`}>今天</option>
+            {years.map((y) => (
+              <option key={y} value={`year:${y}`}>{y}年</option>
             ))}
+            {months.map((m) => {
+              const [Y, M] = m.split('-')
+              return (
+                <option key={m} value={`month:${m}`}>{Y}年{Number(M)}月</option>
+              )
+            })}
+            <option value="all">全部时间</option>
           </select>
         </div>
         <div className="stats-filter-item">
@@ -187,7 +222,7 @@ export default function StatsPage({ entries, members, onBack }: Props) {
       <div className="stats-section">
         <div className="stats-section-title stats-day-head">
           每日支出
-          {dayStats.length > 0 && (
+          {dayStats.length > 1 && (
             <span className="stats-section-hint">日均 ¥{dayAvg.toFixed(2)} · {dayStats.length} 天有记录</span>
           )}
         </div>
@@ -195,18 +230,20 @@ export default function StatsPage({ entries, members, onBack }: Props) {
           <div className="stats-empty">该条件下暂无数据</div>
         ) : (
           <>
-            <div className="stats-filter stats-day-picker">
-              <div className="stats-filter-item">
-                <span className="stats-filter-label">日期</span>
-                <select className="stats-select" value={selDay} onChange={(e) => setSelDay(e.target.value)}>
-                  {dayStats.map((d) => (
-                    <option key={d.day} value={d.day}>
-                      {formatDayLabel(d.day)}{d.day === todayKey ? '（今天）' : ''}
-                    </option>
-                  ))}
-                </select>
+            {dayStats.length > 1 && (
+              <div className="stats-filter stats-day-picker">
+                <div className="stats-filter-item">
+                  <span className="stats-filter-label">日期</span>
+                  <select className="stats-select" value={selDay} onChange={(e) => setSelDay(e.target.value)}>
+                    {dayStats.map((d) => (
+                      <option key={d.day} value={d.day}>
+                        {formatDayLabel(d.day)}{d.day === todayKey ? '（今天）' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
+            )}
             {curDay && (
               <div className="stats-day-card is-open">
                 <div className="stats-day-card-head stats-day-card-static">
