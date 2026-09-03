@@ -75,20 +75,16 @@ export function useLedger() {
     return unsub
   }, [refreshMyLedgers])
 
-  // 打开某个账本：加载 members + entries + 订阅实时
+  // 打开某个账本：聚合接口一次调用并行取回 ledger/members/entries/myMember（原先为 3 次串行云函数）
   const openLedger = useCallback(async (ledgerId: string) => {
-    const ledger = await api.getLedger(ledgerId)
-    if (!ledger) {
-      setError('账本不存在')
-      return
-    }
-    const members = await api.listMembers(ledgerId)
-    const entries = await api.listEntries(ledgerId)
+    const full = await api.getLedgerFull(ledgerId)
+    const { ledger, members, entries } = full
     // 优先按登录 uid 定位“我”的成员记录（跨设备可靠）；mock 模式无 uid 时回退本地缓存
     const uid = auth.getCurrentUser()?.uid
     const idRec = identityRef.current[ledgerId]
     const myMember =
       (uid ? members.find((m) => m.uid === uid) : undefined) ??
+      full.myMember ??
       members.find((m) => m.id === idRec?.memberId) ??
       {
         id: idRec?.memberId ?? '',
@@ -110,7 +106,8 @@ export function useLedger() {
     const ledgerId = current.ledger.id
     const refresh = async () => {
       try {
-        const [members, entries] = await Promise.all([api.listMembers(ledgerId), api.listEntries(ledgerId)])
+        // 聚合接口一次调用取回 members + entries（原先并行打两个云函数）
+        const { members, entries } = await api.getLedgerFull(ledgerId)
         if (cancelled) return
         setCurrent((c) => {
           if (!c) return c

@@ -94,6 +94,15 @@ export const mockAPI: LedgerAPI = {
       .filter((e) => e.ledgerId === ledgerId)
       .sort((a, b) => a.createdAt - b.createdAt)
   },
+  async getLedgerFull(ledgerId) {
+    const ledger = load<Ledger>(K_LEDGERS).find((l) => l.id === ledgerId)
+    if (!ledger) throw new Error('账本不存在')
+    const members = load<Member>(K_MEMBERS).filter((m) => m.ledgerId === ledgerId)
+    const entries = load<Entry>(K_ENTRIES)
+      .filter((e) => e.ledgerId === ledgerId)
+      .sort((a, b) => a.createdAt - b.createdAt)
+    return { ledger, members, entries, myMember: members[0] }
+  },
 
   async addEntry(ledgerId, memberId, nickname, text) {
     const parsed = parseEntryText(text)

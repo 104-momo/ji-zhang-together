@@ -17,6 +17,10 @@ export interface LedgerAPI {
   listLedgersByUid(): Promise<Ledger[]>
   listMembers(ledgerId: string): Promise<Member[]>
   listEntries(ledgerId: string): Promise<Entry[]>
+  /** 聚合：一次调用取回账本本体 + 我的成员身份 + 成员列表 + 全部账目（打开账本/轮询用，减少往返） */
+  getLedgerFull(
+    ledgerId: string,
+  ): Promise<{ ledger: Ledger; myMember: Member; members: Member[]; entries: Entry[] }>
   /** 聊天式记账入口：整句话 → 解析 → 入账 */
   addEntry(ledgerId: string, memberId: string, nickname: string, text: string): Promise<Entry>
   updateEntry(

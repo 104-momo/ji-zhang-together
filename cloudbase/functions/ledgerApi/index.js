@@ -17,6 +17,9 @@
  */
 const crypto = require('crypto')
 const https = require('https')
+// 复用 TCP/TLS 连接：同一 SCF 实例热复用时，多次访问腾讯云数据网关 / 认证网关
+// 不必每次重新握手，显著降低单次 SQL/鉴权的往返耗时（对所有 action 生效）。
+const keepAliveAgent = new https.Agent({ keepAlive: true, maxSockets: 6, keepAliveMsecs: 30000 })
 // ============================================================
 // 数据库访问：通过临时密钥调用 ExecutePGSql API
 // ============================================================
@@ -60,7 +63,7 @@ function executePGSql(sql) {
       'X-TC-Region': region,
     }
     if (token) headers['X-TC-Token'] = token
-    const req = https.request({ hostname: host, method: 'POST', path: '/', headers }, (res) => {
+    const req = https.request({ hostname: host, method: 'POST', path: '/', headers, agent: keepAliveAgent }, (res) => {
       let data = ''
       res.on('data', (c) => { data += c })
       res.on('end', () => {
@@ -209,6 +212,7 @@ function httpsJson(url, headers, timeoutMs) {
         path: u.pathname,
         method: 'GET',
         headers,
+        agent: keepAliveAgent,
         timeout: timeoutMs || 6000,
       },
       (res) => {
@@ -484,6 +488,34 @@ const handlers = {
       ORDER BY e.created_at ASC
     `)
     return rows.map(rowToEntry)
+  },
+  // —— 聚合：一次调用取回账本+成员+账目（打开账本/轮询专用，替代原先 3 次串行云函数）——
+  async getLedgerFull({ ledgerId }, ctx) {
+    const uid = ctx.uid
+    const t0 = Date.now()
+    // 阶段1：账本本体与“我的成员身份”并行查（两条 SQL 同时发出）
+    const [ledger, myMember] = await Promise.all([getLedgerDoc(ledgerId), getMyMember(ledgerId, uid)])
+    if (!ledger) throw new Error('账本不存在')
+    if (!myMember) throw new Error('你还没有加入这个账本')
+    const t1 = Date.now()
+    // 阶段2：成员列表与全部账目并行查
+    const [memberRows, entryRows] = await Promise.all([
+      executePGSql(`SELECT * FROM members WHERE ledger_id = ${esc(ledgerId)} ORDER BY joined_at ASC`),
+      executePGSql(`
+        SELECT e.*, m.id as resolved_member_id, m.name as nickname
+        FROM entries e
+        LEFT JOIN members m ON m.ledger_id = e.ledger_id AND m.uid = e.uid
+        WHERE e.ledger_id = ${esc(ledgerId)}
+        ORDER BY e.created_at ASC
+      `),
+    ])
+    return {
+      ledger,
+      myMember,
+      members: memberRows.map(rowToMember),
+      entries: entryRows.map(rowToEntry),
+      _timing: { phase1Ms: t1 - t0, phase2Ms: Date.now() - t1, totalMs: Date.now() - t0 },
+    }
   },
   // —— 记账 ——
   async addEntry({ ledgerId, text, nickname }, ctx) {

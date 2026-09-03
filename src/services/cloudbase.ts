@@ -95,6 +95,15 @@ export const cloudAPI: LedgerAPI = {
     const data = await call('listEntries', { ledgerId })
     return (data || []).map(mapEntry)
   },
+  async getLedgerFull(ledgerId) {
+    const data = await call('getLedgerFull', { ledgerId })
+    return {
+      ledger: mapLedger(data.ledger),
+      myMember: mapMember(data.myMember),
+      members: (data.members || []).map(mapMember),
+      entries: (data.entries || []).map(mapEntry),
+    }
+  },
 
   async addEntry(ledgerId, _memberId, nickname, text) {
     // 注意：云函数从登录态取 uid，memberId 参数忽略不传
