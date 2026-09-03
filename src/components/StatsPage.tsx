@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Entry, Member } from '../types'
 import { CATEGORIES } from '../types'
 import { CATEGORY_COLOR_VAR, avatarColor } from '../utils/colors'
-import { IconArrowLeft, IconChevronDown } from './Icons'
+import { IconArrowLeft } from './Icons'
 
 interface Props {
   entries: Entry[]
@@ -41,8 +41,8 @@ export default function StatsPage({ entries, members, onBack }: Props) {
   const [filterMember, setFilterMember] = useState<string>('all')
   const [filterMonth, setFilterMonth] = useState<string>('all')
   const todayKey = getDayKey(Date.now())
-  // 手风琴：默认只展开“今天”，其余日期折叠
-  const [openDay, setOpenDay] = useState<string>(todayKey)
+  // 每日统计：页面只展示选中的某一天（默认今天），查其他天通过“日期”下拉切换
+  const [selDay, setSelDay] = useState<string>(todayKey)
 
   const active = useMemo(
     () => entries.filter((e) => !(e.amount === 0 && (e.note || '').includes('【已删除】'))),
@@ -125,16 +125,16 @@ export default function StatsPage({ entries, members, onBack }: Props) {
       .map(([day, v]) => ({ day, amount: v.amount, count: v.count }))
       .sort((a, b) => b.day.localeCompare(a.day))
   }, [filtered])
-  const dayMax = dayStats.reduce((m, d) => Math.max(m, d.amount), 0)
   const dayAvg = dayStats.length > 0 ? total / dayStats.length : 0
-  // 筛选/数据变化后，若当前展开日已不在列表，则默认展开今天，否则展开最近一天
+  // 筛选/数据变化后，若当前选中日已不在列表，则默认选今天，否则选最近一天
   useEffect(() => {
-    setOpenDay((cur) => {
+    setSelDay((cur) => {
       if (dayStats.some((d) => d.day === cur)) return cur
       if (dayStats.some((d) => d.day === todayKey)) return todayKey
       return dayStats[0]?.day ?? ''
     })
   }, [dayStats, todayKey])
+  const curDay = dayStats.find((d) => d.day === selDay)
   const entriesOfDay = (day: string): Entry[] =>
     filtered.filter((e) => getDayKey(e.createdAt) === day).sort((a, b) => a.createdAt - b.createdAt)
   const avgBase = memberStats.length > 0 ? memberStats.length : 1
@@ -194,49 +194,48 @@ export default function StatsPage({ entries, members, onBack }: Props) {
         {dayStats.length === 0 ? (
           <div className="stats-empty">该条件下暂无数据</div>
         ) : (
-          <div className="stats-day-cards">
-            {dayStats.map((d) => {
-              const open = d.day === openDay
-              return (
-                <div key={d.day} className={`stats-day-card${open ? ' is-open' : ''}`}>
-                  <button
-                    type="button"
-                    className="stats-day-card-head"
-                    onClick={() => setOpenDay(open ? '' : d.day)}
-                  >
-                    <span className="stats-day-card-date">
-                      {formatDayLabel(d.day)}
-                      {d.day === todayKey && <em className="stats-day-today">今天</em>}
-                    </span>
-                    <span className="stats-day-mini">
-                      <i style={{ width: `${(d.amount / (dayMax || 1)) * 100}%` }} />
-                    </span>
-                    <span className="stats-day-card-sum">
-                      ¥{d.amount.toFixed(2)}
-                      <small>{d.count}笔</small>
-                    </span>
-                    <IconChevronDown size={16} className="stats-day-chev" />
-                  </button>
-                  {open && (
-                    <div className="stats-day-detail">
-                      {entriesOfDay(d.day).map((e) => (
-                        <div key={e.id} className="stats-day-item">
-                          <span className="stats-day-item-time">{formatHM(e.createdAt)}</span>
-                          <span
-                            className="stats-day-item-dot"
-                            style={{ background: CATEGORY_COLOR_VAR[e.category as keyof typeof CATEGORY_COLOR_VAR] ?? 'var(--c-other)' }}
-                          />
-                          <span className="stats-day-item-text">{e.rawText}</span>
-                          <span className="stats-day-item-by">{e.nickname}</span>
-                          <span className="stats-day-item-amt">¥{e.amount.toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+          <>
+            <div className="stats-filter stats-day-picker">
+              <div className="stats-filter-item">
+                <span className="stats-filter-label">日期</span>
+                <select className="stats-select" value={selDay} onChange={(e) => setSelDay(e.target.value)}>
+                  {dayStats.map((d) => (
+                    <option key={d.day} value={d.day}>
+                      {formatDayLabel(d.day)}{d.day === todayKey ? '（今天）' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {curDay && (
+              <div className="stats-day-card is-open">
+                <div className="stats-day-card-head stats-day-card-static">
+                  <span className="stats-day-card-date">
+                    {formatDayLabel(curDay.day)}
+                    {curDay.day === todayKey && <em className="stats-day-today">今天</em>}
+                  </span>
+                  <span className="stats-day-card-sum">
+                    ¥{curDay.amount.toFixed(2)}
+                    <small>{curDay.count}笔</small>
+                  </span>
                 </div>
-              )
-            })}
-          </div>
+                <div className="stats-day-detail">
+                  {entriesOfDay(curDay.day).map((e) => (
+                    <div key={e.id} className="stats-day-item">
+                      <span className="stats-day-item-time">{formatHM(e.createdAt)}</span>
+                      <span
+                        className="stats-day-item-dot"
+                        style={{ background: CATEGORY_COLOR_VAR[e.category as keyof typeof CATEGORY_COLOR_VAR] ?? 'var(--c-other)' }}
+                      />
+                      <span className="stats-day-item-text">{e.rawText}</span>
+                      <span className="stats-day-item-by">{e.nickname}</span>
+                      <span className="stats-day-item-amt">¥{e.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
       <div className="stats-section">

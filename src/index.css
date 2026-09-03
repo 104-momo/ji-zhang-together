@@ -1164,32 +1164,30 @@ select {
   font-weight: 500;
   color: var(--ink-3);
 }
-/* —— 每日支出：手风琴折叠卡片 —— */
-.stats-day-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* —— 每日支出：日期下拉 + 单日卡片（只显示选中日）—— */
+.stats-day-picker {
+  padding: 0 2px;
+  margin-bottom: 10px;
 }
 .stats-day-card {
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--accent);
   border-radius: var(--r-card);
   box-shadow: var(--shadow-card);
   overflow: hidden;
-  transition: border-color 0.18s;
-}
-.stats-day-card.is-open {
-  border-color: var(--accent);
 }
 .stats-day-card-head {
   width: 100%;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   padding: 13px 14px;
+}
+.stats-day-card-static {
+  cursor: default;
   background: none;
   border: none;
-  cursor: pointer;
   text-align: left;
 }
 .stats-day-card-date {
@@ -1211,21 +1209,6 @@ select {
   border-radius: var(--r-pill);
   padding: 1px 7px;
 }
-.stats-day-mini {
-  flex: 1;
-  height: 6px;
-  min-width: 30px;
-  background: var(--surface-3);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.stats-day-mini > i {
-  display: block;
-  height: 100%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--accent), #3aa687);
-  transition: width 0.4s var(--ease);
-}
 .stats-day-card-sum {
   font-size: 14px;
   font-weight: 800;
@@ -1241,14 +1224,6 @@ select {
   font-size: 10px;
   font-weight: 500;
   color: var(--ink-3);
-}
-.stats-day-chev {
-  color: var(--ink-3);
-  flex-shrink: 0;
-  transition: transform 0.22s var(--ease);
-}
-.stats-day-card.is-open .stats-day-chev {
-  transform: rotate(180deg);
 }
 .stats-day-detail {
   border-top: 1px solid var(--line);
