@@ -1,6 +1,6 @@
 // ===== 数据模型（与 CloudBase 三集合 ledgers/members/entries 一一对应）=====
 
-export const CATEGORIES = ['餐饮', '交通', '购物', '娱乐', '居住', '医疗', '人情', '其他'] as const
+export const CATEGORIES = ['餐饮', '交通', '购物', '日用', '娱乐', '居住', '医疗', '人情', '其他'] as const
 export type Category = (typeof CATEGORIES)[number]
 
 export interface Ledger {

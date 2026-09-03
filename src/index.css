@@ -29,10 +29,11 @@
   --warn: #c08431;
   --warn-soft: rgba(192, 132, 49, 0.12);
 
-  /* —— 分类色（降饱和 8 色）—— */
+  /* —— 分类色（降饱和 9 色）—— */
   --c-food: #e0893c;
   --c-transit: #4a90c2;
   --c-shop: #d2688c;
+  --c-daily: #3f9e97;
   --c-fun: #9b7bd4;
   --c-live: #5fa87a;
   --c-med: #d4645c;
