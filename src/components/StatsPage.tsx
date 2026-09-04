@@ -32,9 +32,51 @@ function formatDayLabel(key: string): string {
   const w = WEEK_LABEL[new Date(Y, M - 1, D).getDay()]
   return `${String(M).padStart(2, '0')}-${String(D).padStart(2, '0')} ${w}`
 }
-function formatHM(ts: number): string {
-  const d = new Date(ts)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+/** 每日支出折线图（纯 SVG，无第三方依赖） */
+function DayTrendChart({ data }: { data: { day: string; amount: number; count: number }[] }) {
+  const W = 340
+  const H = 180
+  const PL = 40
+  const PR = 12
+  const PT = 28
+  const PB = 32
+  const asc = [...data].sort((a, b) => a.day.localeCompare(b.day))
+  const max = Math.max(...asc.map((d) => d.amount), 1)
+  const n = asc.length
+  const xAt = (i: number) => (n <= 1 ? (W - PL - PR) / 2 + PL : PL + (i / (n - 1)) * (W - PL - PR))
+  const yAt = (v: number) => H - PB - (v / max) * (H - PT - PB)
+  const path = asc.map((d, i) => `${i === 0 ? 'M' : 'L'}${xAt(i).toFixed(1)} ${yAt(d.amount).toFixed(1)}`).join(' ')
+  const gridVals = [0, max / 2, max]
+  const showVal = n <= 7
+  const xStep = n <= 10 ? 1 : Math.ceil(n / 10)
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: 'block' }}>
+      {gridVals.map((v, i) => (
+        <g key={i}>
+          <line x1={PL} y1={yAt(v)} x2={W - PR} y2={yAt(v)} stroke="var(--line)" strokeWidth={1} strokeDasharray={i === 0 ? '' : '3 3'} />
+          <text x={PL - 6} y={yAt(v) + 3} textAnchor="end" fontSize={9} fill="var(--ink-3)">
+            {Math.round(v)}
+          </text>
+        </g>
+      ))}
+      <path d={path} fill="none" stroke="var(--accent)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      {asc.map((d, i) => (
+        <g key={d.day}>
+          <circle cx={xAt(i)} cy={yAt(d.amount)} r={4} fill="var(--accent)" stroke="var(--surface)" strokeWidth={2} />
+          {showVal && (
+            <text x={xAt(i)} y={yAt(d.amount) - 9} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--accent-strong)">
+              ¥{d.amount.toFixed(0)}
+            </text>
+          )}
+          {i % xStep === 0 && (
+            <text x={xAt(i)} y={H - PB + 14} textAnchor="middle" fontSize={9} fill="var(--ink-3)">
+              {d.day.slice(5).replace('-', '/')}
+            </text>
+          )}
+        </g>
+      ))}
+    </svg>
+  )
 }
 
 export default function StatsPage({ entries, members, onBack }: Props) {
@@ -162,9 +204,6 @@ export default function StatsPage({ entries, members, onBack }: Props) {
       return dayStats[0]?.day ?? ''
     })
   }, [dayStats, todayKey, range])
-  const curDay = dayStats.find((d) => d.day === selDay)
-  const entriesOfDay = (day: string): Entry[] =>
-    filtered.filter((e) => getDayKey(e.createdAt) === day).sort((a, b) => a.createdAt - b.createdAt)
   const avgBase = memberStats.length > 0 ? memberStats.length : 1
 
   return (
@@ -230,10 +269,11 @@ export default function StatsPage({ entries, members, onBack }: Props) {
           <div className="stats-empty">该条件下暂无数据</div>
         ) : (
           <>
+            <DayTrendChart data={dayStats} />
             {dayStats.length > 1 && (
-              <div className="stats-filter stats-day-picker">
+              <div className="stats-filter stats-day-picker" style={{ marginTop: 4 }}>
                 <div className="stats-filter-item">
-                  <span className="stats-filter-label">日期</span>
+                  <span className="stats-filter-label">查看某天</span>
                   <select className="stats-select" value={selDay} onChange={(e) => setRange(`day:${e.target.value}`)}>
                     {dayStats.map((d) => (
                       <option key={d.day} value={d.day}>
@@ -241,34 +281,6 @@ export default function StatsPage({ entries, members, onBack }: Props) {
                       </option>
                     ))}
                   </select>
-                </div>
-              </div>
-            )}
-            {curDay && (
-              <div className="stats-day-card is-open">
-                <div className="stats-day-card-head stats-day-card-static">
-                  <span className="stats-day-card-date">
-                    {formatDayLabel(curDay.day)}
-                    {curDay.day === todayKey && <em className="stats-day-today">今天</em>}
-                  </span>
-                  <span className="stats-day-card-sum">
-                    ¥{curDay.amount.toFixed(2)}
-                    <small>{curDay.count}笔</small>
-                  </span>
-                </div>
-                <div className="stats-day-detail">
-                  {entriesOfDay(curDay.day).map((e) => (
-                    <div key={e.id} className="stats-day-item">
-                      <span className="stats-day-item-time">{formatHM(e.createdAt)}</span>
-                      <span
-                        className="stats-day-item-dot"
-                        style={{ background: CATEGORY_COLOR_VAR[e.category as keyof typeof CATEGORY_COLOR_VAR] ?? 'var(--c-other)' }}
-                      />
-                      <span className="stats-day-item-text">{e.rawText}</span>
-                      <span className="stats-day-item-by">{e.nickname}</span>
-                      <span className="stats-day-item-amt">¥{e.amount.toFixed(2)}</span>
-                    </div>
-                  ))}
                 </div>
               </div>
             )}
