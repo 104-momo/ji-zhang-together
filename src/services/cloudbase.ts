@@ -21,9 +21,9 @@ async function call(action: string, params: Record<string, any> = {}): Promise<a
   // Web SDK 调用云函数不注入 event.userInfo，因此把登录后的 accessToken 传给云函数，
   // 由云函数调 CloudBase 网关 /auth/v1/user/me 验证身份取 uid（前端 uid 一律不信任）。
   // 登录态在 auth 单例上就绪可能有极短延迟；若暂时读不到 token，短暂轮询等待
-  //（最多约 3 秒），避免登录瞬间用空 token 请求云函数而报“请先登录”。
+  //（最多约 5 秒），避免登录瞬间用空 token 请求云函数而报“请先登录”。
   let accessToken = ''
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 25; i++) {
     try {
       const t = await auth.getAccessToken()
       accessToken = t?.accessToken || ''

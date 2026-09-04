@@ -5,11 +5,14 @@ import { auth } from '../services/auth'
 
 interface Props {
   myLedgers: Ledger[]
+  loading?: boolean
+  error?: string | null
+  onRefresh?: () => void
   onCreate: (name: string, nickname: string) => Promise<void>
   onOpen: (ledgerId: string) => void
 }
 
-export default function HomePage({ myLedgers, onCreate, onOpen }: Props) {
+export default function HomePage({ myLedgers, loading, error, onRefresh, onCreate, onOpen }: Props) {
   const [name, setName] = useState('')
   const [nickname, setNickname] = useState(auth.getCurrentUser()?.nickname || '')
   const [busy, setBusy] = useState(false)
@@ -60,10 +63,20 @@ export default function HomePage({ myLedgers, onCreate, onOpen }: Props) {
         </button>
       </div>
 
-      {myLedgers.length > 0 ? (
+      {loading && myLedgers.length === 0 ? (
+        <div style={{ textAlign: 'center', color: 'var(--ink-3)', fontSize: 13, padding: '24px 0' }}>正在加载账本…</div>
+      ) : error ? (
+        <div style={{ textAlign: 'center', padding: '20px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <span style={{ color: 'var(--danger)', fontSize: 13 }}>{error}</span>
+          <button className="btn-primary" style={{ padding: '6px 22px', fontSize: 13 }} onClick={() => onRefresh?.()}>重试</button>
+        </div>
+      ) : myLedgers.length > 0 ? (
         <>
-          <div className="home-section-title">
-            <IconWallet size={14} /> 我的账本
+          <div className="home-section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <IconWallet size={14} /> 我的账本
+            </span>
+            <button onClick={() => onRefresh?.()} style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>刷新</button>
           </div>
           {myLedgers.map((l) => (
             <button key={l.id} className="ledger-item" onClick={() => onOpen(l.id)}>
@@ -80,7 +93,9 @@ export default function HomePage({ myLedgers, onCreate, onOpen }: Props) {
             </button>
           ))}
         </>
-      ) : null}
+      ) : (
+        <div style={{ textAlign: 'center', color: 'var(--ink-3)', fontSize: 13, padding: '20px 0' }}>还没有账本，在上面创建一本吧</div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8, marginBottom: 16 }}>
         <button

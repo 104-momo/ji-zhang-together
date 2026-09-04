@@ -35,29 +35,37 @@ function isOwnerOf(ledger: Ledger, member: Member): boolean {
 
 export function useLedger() {
   const [myLedgers, setMyLedgers] = useState<Ledger[]>([])
+  const [ledgersLoading, setLedgersLoading] = useState(false)
+  const [ledgersError, setLedgersError] = useState<string | null>(null)
   const [current, setCurrent] = useState<LedgerView | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const identityRef = useRef<Record<string, IdentityRecord>>(loadIdentity())
   // 刷新“我参与的所有账本”：云端按登录 uid 查询（跨设备可靠），不再依赖本地缓存
   const refreshMyLedgers = useCallback(async () => {
-    // 登录态恢复时 accessToken 可能稍晚才就绪，一次失败就置空会让首页永久显示“没有账本”。
-    // 这里做有限重试；明确“未登录”时不清空，交给 onAuthStateChanged 在登录后再拉。
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const ledgers = await api.listLedgersByUid()
-        setMyLedgers(ledgers)
-        return
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        const notAuthed = /未登录|请先登录|登录态无效/.test(msg)
-        if (notAuthed) return // 等登录态就绪事件再触发，不主动清空
-        if (attempt === 2) {
-          setMyLedgers([])
+    setLedgersLoading(true)
+    setLedgersError(null)
+    try {
+      // 登录态恢复时 accessToken 可能稍晚才就绪；notAuthed 也纳入重试，
+      // 避免登录瞬间一次失败后永久停在空白页。连续失败保留旧列表，只提示可重试。
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const ledgers = await api.listLedgersByUid()
+          setMyLedgers(ledgers)
+          setLedgersError(null)
+          return
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          if (attempt < 4) {
+            await new Promise((r) => setTimeout(r, 1000))
+            continue
+          }
+          setLedgersError(msg || '加载账本失败，请重试')
           return
         }
-        await new Promise((r) => setTimeout(r, 800))
       }
+    } finally {
+      setLedgersLoading(false)
     }
   }, [])
 
@@ -319,6 +327,9 @@ export function useLedger() {
 
   return {
     myLedgers,
+    ledgersLoading,
+    ledgersError,
+    refreshMyLedgers,
     current,
     error,
     createLedger,

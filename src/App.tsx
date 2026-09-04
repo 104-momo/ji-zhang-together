@@ -22,6 +22,9 @@ function parseJoinParams(): JoinParams | null {
 export default function App() {
   const {
     myLedgers,
+    ledgersLoading,
+    ledgersError,
+    refreshMyLedgers,
     current,
     error,
     createLedger,
@@ -105,6 +108,8 @@ export default function App() {
       await new Promise((r) => setTimeout(r, 200))
     }
     setUser(u)
+    // 登录成功后显式刷新账本列表（双保险：不依赖 onAuthStateChanged 的触发时序）
+    void refreshMyLedgers()
     if (u?.uid && join) {
       const nickname = u.nickname || u.email?.split('@')[0] || '我'
       try {
@@ -181,7 +186,16 @@ export default function App() {
       />
     )
   } else {
-    page = <HomePage myLedgers={myLedgers} onCreate={handleCreate} onOpen={handleOpen} />
+    page = (
+      <HomePage
+        myLedgers={myLedgers}
+        loading={ledgersLoading}
+        error={ledgersError}
+        onRefresh={() => void refreshMyLedgers()}
+        onCreate={handleCreate}
+        onOpen={handleOpen}
+      />
+    )
   }
 
   return (
