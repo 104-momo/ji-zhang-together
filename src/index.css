@@ -1041,11 +1041,16 @@ select {
 }
 /* 记账列表按日分隔 */
 .msg-day-divider {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin: 14px 0 8px;
+  margin: 0 0 8px;
+  padding: 14px 0 6px;
+  background: var(--canvas);
   font-size: 12px;
   font-weight: 700;
   color: var(--ink-3);
