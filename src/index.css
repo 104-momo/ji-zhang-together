@@ -1039,6 +1039,34 @@ select {
   width: 11px;
   height: 11px;
 }
+/* 记账列表按日分隔 */
+.msg-day-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 14px 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-3);
+  letter-spacing: 0.02em;
+}
+.msg-day-divider::before,
+.msg-day-divider::after {
+  content: '';
+  flex: 1;
+  max-width: 56px;
+  height: 1px;
+  background: var(--line);
+}
+.msg-day-divider em {
+  font-style: normal;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+}
 
 /* ============ 统计页 ============ */
 .stats-header {

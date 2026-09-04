@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { Category, Entry } from '../types'
 import StatHeader from './StatHeader'
 import CategoryStats from './CategoryStats'
@@ -44,6 +44,20 @@ export default function LedgerPage({
   const listRef = useRef<HTMLDivElement>(null)
   // 排除已删除账目（软删除），避免残留显示
   const activeEntries = entries.filter((e) => !e.deleted)
+  // 按本地日分组显示日期分隔，避免跨天只看时间造成混淆
+  const todayKey = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })()
+  const getDayKey = (ts: number) => {
+    const d = new Date(ts)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+  const dayLabel = (key: string) => {
+    const [Y, M, D] = key.split('-').map(Number)
+    return `${M}月${D}日 ${WEEK[new Date(Y, M - 1, D).getDay()]}`
+  }
   // 兼容判断创建者：CloudBase 模式 ledger.ownerId 是 uid，与 myMember.uid 对应；mock 模式 ownerId 是 member.id
   const isOwner = ledger.ownerId === myMember.id || (!!myMember.uid && ledger.ownerId === myMember.uid)
 
@@ -93,16 +107,27 @@ export default function LedgerPage({
             <p className="empty-sub">在下面说一句，比如「吃烤鱼200元」</p>
           </div>
         ) : (
-          activeEntries.map((e) => (
-            <EntryBubble
-              key={e.id}
-              entry={e}
-              myMemberId={myMember.id}
-              isOwner={isOwner}
-              onUpdate={(id, patch) => void onUpdateEntry(id, patch)}
-              onDelete={(id) => void onDeleteEntry(id)}
-            />
-          ))
+          activeEntries.map((e, i) => {
+            const day = getDayKey(e.createdAt)
+            const prevDay = i > 0 ? getDayKey(activeEntries[i - 1].createdAt) : ''
+            return (
+              <Fragment key={e.id}>
+                {day !== prevDay && (
+                  <div className="msg-day-divider">
+                    <span>{dayLabel(day)}</span>
+                    {day === todayKey && <em>今天</em>}
+                  </div>
+                )}
+                <EntryBubble
+                  entry={e}
+                  myMemberId={myMember.id}
+                  isOwner={isOwner}
+                  onUpdate={(id, patch) => void onUpdateEntry(id, patch)}
+                  onDelete={(id) => void onDeleteEntry(id)}
+                />
+              </Fragment>
+            )
+          })
         )}
       </div>
       <EntryInput onSend={handleAdd} disabled={false} />

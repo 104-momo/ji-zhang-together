@@ -234,7 +234,7 @@ export default function StatsPage({ entries, members, onBack }: Props) {
               <div className="stats-filter stats-day-picker">
                 <div className="stats-filter-item">
                   <span className="stats-filter-label">日期</span>
-                  <select className="stats-select" value={selDay} onChange={(e) => setSelDay(e.target.value)}>
+                  <select className="stats-select" value={selDay} onChange={(e) => setRange(`day:${e.target.value}`)}>
                     {dayStats.map((d) => (
                       <option key={d.day} value={d.day}>
                         {formatDayLabel(d.day)}{d.day === todayKey ? '（今天）' : ''}
