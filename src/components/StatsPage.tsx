@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Entry, Member } from '../types'
 import { CATEGORIES } from '../types'
 import { CATEGORY_COLOR_VAR, avatarColor } from '../utils/colors'
@@ -85,8 +85,6 @@ export default function StatsPage({ entries, members, onBack }: Props) {
   // 整页时间范围：默认只看“今天”，主动切换到月/年/全部后才扩大统计口径。
   // 取值：day:YYYY-MM-DD（默认今天）/ month:YYYY-MM / year:YYYY / all
   const [range, setRange] = useState<string>(`day:${todayKey}`)
-  // 每日统计：页面只展示选中的某一天（默认今天），查其他天通过“日期”下拉切换
-  const [selDay, setSelDay] = useState<string>(todayKey)
 
   const active = useMemo(
     () => entries.filter((e) => !(e.amount === 0 && (e.note || '').includes('【已删除】'))),
@@ -176,10 +174,24 @@ export default function StatsPage({ entries, members, onBack }: Props) {
     const [, M] = val.split('-')
     return `${Number(M)}月`
   })()
-  // 每日支出：按本地日聚合，最近的一天在最上
-  const dayStats = useMemo(() => {
+  // 每日支出折线图数据：当日模式自动扩展到该自然月（避免只显示一个点），
+  // 月/年/全部模式对应各自范围；成员筛选同样生效。
+  const trendStats = useMemo(() => {
+    let list = filterMember !== 'all' ? active.filter((e) => e.memberId === filterMember) : active
+    if (range !== 'all') {
+      const [kind, val] = range.split(':')
+      if (kind === 'day' || kind === 'month') {
+        const [Y, M] = val.split('-')
+        list = list.filter((e) => {
+          const d = new Date(e.createdAt)
+          return d.getFullYear() === Number(Y) && d.getMonth() + 1 === Number(M)
+        })
+      } else if (kind === 'year') {
+        list = list.filter((e) => new Date(e.createdAt).getFullYear() === Number(val))
+      }
+    }
     const map = new Map<string, { amount: number; count: number }>()
-    for (const e of filtered) {
+    for (const e of list) {
       const k = getDayKey(e.createdAt)
       const cur = map.get(k) ?? { amount: 0, count: 0 }
       cur.amount += e.amount
@@ -188,22 +200,11 @@ export default function StatsPage({ entries, members, onBack }: Props) {
     }
     return Array.from(map.entries())
       .map(([day, v]) => ({ day, amount: v.amount, count: v.count }))
-      .sort((a, b) => b.day.localeCompare(a.day))
-  }, [filtered])
-  const dayAvg = dayStats.length > 0 ? total / dayStats.length : 0
-  // 筛选/数据变化后，若当前选中日已不在列表，则默认选今天，否则选最近一天
-  useEffect(() => {
-    // 当日模式：明细锁定为范围指定的那一天（默认即今天）
-    if (range.startsWith('day:')) {
-      setSelDay(range.slice(4))
-      return
-    }
-    setSelDay((cur) => {
-      if (dayStats.some((d) => d.day === cur)) return cur
-      if (dayStats.some((d) => d.day === todayKey)) return todayKey
-      return dayStats[0]?.day ?? ''
-    })
-  }, [dayStats, todayKey, range])
+      .sort((a, b) => a.day.localeCompare(b.day))
+  }, [active, filterMember, range])
+  const trendTotal = trendStats.reduce((s, d) => s + d.amount, 0)
+  const trendAvg = trendStats.length > 0 ? trendTotal / trendStats.length : 0
+  const pickedDay = range.startsWith('day:') ? range.slice(4) : ''
   const avgBase = memberStats.length > 0 ? memberStats.length : 1
 
   return (
@@ -261,21 +262,21 @@ export default function StatsPage({ entries, members, onBack }: Props) {
       <div className="stats-section">
         <div className="stats-section-title stats-day-head">
           每日支出
-          {dayStats.length > 1 && (
-            <span className="stats-section-hint">日均 ¥{dayAvg.toFixed(2)} · {dayStats.length} 天有记录</span>
+          {trendStats.length > 1 && (
+            <span className="stats-section-hint">日均 ¥{trendAvg.toFixed(2)} · {trendStats.length} 天有记录</span>
           )}
         </div>
-        {dayStats.length === 0 ? (
+        {trendStats.length === 0 ? (
           <div className="stats-empty">该条件下暂无数据</div>
         ) : (
           <>
-            <DayTrendChart data={dayStats} />
-            {dayStats.length > 1 && (
+            <DayTrendChart data={trendStats} />
+            {trendStats.length > 1 && (
               <div className="stats-filter stats-day-picker" style={{ marginTop: 4 }}>
                 <div className="stats-filter-item">
                   <span className="stats-filter-label">查看某天</span>
-                  <select className="stats-select" value={selDay} onChange={(e) => setRange(`day:${e.target.value}`)}>
-                    {dayStats.map((d) => (
+                  <select className="stats-select" value={pickedDay} onChange={(e) => setRange(`day:${e.target.value}`)}>
+                    {trendStats.map((d) => (
                       <option key={d.day} value={d.day}>
                         {formatDayLabel(d.day)}{d.day === todayKey ? '（今天）' : ''}
                       </option>
