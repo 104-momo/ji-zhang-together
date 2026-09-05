@@ -131,11 +131,34 @@ export function useLedger() {
         // 单次轮询失败静默处理，下一轮自动重试
       }
     }
-    // 2 秒轮询：本方记账会立即本地插入，轮询主要负责拉取对方的新账目
-    const timer = setInterval(refresh, 2000)
+    // 2 秒轮询：页面不可见（切后台/锁屏/切标签）时暂停，回到页面立即刷新一次再恢复。
+    // 目的：省云函数调用额度（双人常驻轮询约 260 万次/月，远超免费额度）
+    let timer: ReturnType<typeof setInterval> | null = null
+    const start = () => {
+      if (timer) return
+      timer = setInterval(refresh, 2000)
+    }
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer)
+        timer = null
+      }
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void refresh() // 回到页面立即拉一次最新，保证同步体验不变
+        start()
+      } else {
+        stop()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    // 初始按当前可见性决定是否轮询（后台打开的页面不空转）
+    if (document.visibilityState === 'visible') start()
     return () => {
       cancelled = true
-      clearInterval(timer)
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [current?.ledger.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
