@@ -25,7 +25,7 @@ export interface LedgerAPI {
   addEntry(ledgerId: string, memberId: string, nickname: string, text: string): Promise<Entry>
   updateEntry(
     entryId: string,
-    patch: { amount?: number; category?: Category; note?: string },
+    patch: { amount?: number; category?: Category; note?: string; rawText?: string },
     memberId: string,
     nickname: string,
   ): Promise<Entry>

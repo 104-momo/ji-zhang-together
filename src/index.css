@@ -771,7 +771,8 @@ select {
 }
 .edit-amount,
 .edit-note,
-.edit-cat {
+.edit-cat,
+.edit-text {
   padding: 7px 10px;
   border: 1px solid var(--line-strong);
   border-radius: var(--r-control);
@@ -781,13 +782,19 @@ select {
 }
 .bubble-row.mine .edit-amount,
 .bubble-row.mine .edit-note,
-.bubble-row.mine .edit-cat {
+.bubble-row.mine .edit-cat,
+.bubble-row.mine .edit-text {
   background: rgba(255, 255, 255, 0.16);
   border-color: rgba(255, 255, 255, 0.3);
   color: #fff;
 }
 .edit-amount {
   width: 90px;
+}
+.edit-text {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
 }
 .edit-note {
   flex: 1;
@@ -816,7 +823,8 @@ select {
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
 }
-.bubble-row.mine .edit-note::placeholder {
+.bubble-row.mine .edit-note::placeholder,
+.bubble-row.mine .edit-text::placeholder {
   color: rgba(255, 255, 255, 0.55);
 }
 .bubble-row.mine .btn-cancel {

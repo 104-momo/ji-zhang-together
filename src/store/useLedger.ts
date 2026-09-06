@@ -235,7 +235,7 @@ export function useLedger() {
   )
 
   const updateEntry = useCallback(
-    async (entryId: string, patch: { amount?: number; category?: Category; note?: string }) => {
+    async (entryId: string, patch: { amount?: number; category?: Category; note?: string; rawText?: string }) => {
       if (!current) throw new Error('请先进入账本')
       const updated = await api.updateEntry(entryId, patch, current.myMember.id, current.myMember.nickname)
       // 立即把更新结果写回本地列表，不等轮询

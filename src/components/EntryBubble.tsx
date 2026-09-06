@@ -18,7 +18,7 @@ interface Props {
   entry: Entry
   myMemberId: string
   isOwner: boolean
-  onUpdate: (entryId: string, patch: { amount?: number; category?: Category; note?: string }) => void
+  onUpdate: (entryId: string, patch: { amount?: number; category?: Category; note?: string; rawText?: string }) => void
   onDelete: (entryId: string) => void
 }
 
@@ -27,6 +27,7 @@ export default function EntryBubble({ entry, myMemberId, isOwner, onUpdate, onDe
   const [amount, setAmount] = useState(String(entry.amount))
   const [category, setCategory] = useState<Category>(entry.category)
   const [note, setNote] = useState(entry.note ?? '')
+  const [text, setText] = useState(entry.rawText ?? entry.category)
   const panelRef = useRef<HTMLDivElement>(null)
 
   // 每次打开编辑面板时，用当前最新 entry 重置编辑状态。
@@ -37,6 +38,7 @@ export default function EntryBubble({ entry, myMemberId, isOwner, onUpdate, onDe
       setAmount(String(entry.amount))
       setCategory(entry.category)
       setNote(entry.note ?? '')
+      setText(entry.rawText ?? entry.category)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing])
@@ -55,7 +57,12 @@ export default function EntryBubble({ entry, myMemberId, isOwner, onUpdate, onDe
   const save = () => {
     const amt = parseFloat(amount)
     if (!Number.isFinite(amt) || amt <= 0) return
-    onUpdate(entry.id, { amount: amt, category, note: note.trim() || undefined })
+    onUpdate(entry.id, {
+      amount: amt,
+      category,
+      note: note.trim() || undefined,
+      rawText: text.trim() || undefined,
+    })
     setEditing(false)
   }
 
@@ -133,6 +140,12 @@ export default function EntryBubble({ entry, myMemberId, isOwner, onUpdate, onDe
                 ))}
               </select>
             </div>
+            <input
+              className="edit-text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="记账内容（一开始输入的文字）"
+            />
             <input
               className="edit-note"
               value={note}

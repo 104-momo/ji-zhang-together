@@ -12,7 +12,7 @@ import type { LedgerView } from '../store/useLedger'
 interface Props {
   view: LedgerView
   onAddEntry: (text: string) => Promise<Entry>
-  onUpdateEntry: (entryId: string, patch: { amount?: number; category?: Category; note?: string }) => Promise<Entry>
+  onUpdateEntry: (entryId: string, patch: { amount?: number; category?: Category; note?: string; rawText?: string }) => Promise<Entry>
   onDeleteEntry: (entryId: string) => Promise<void>
   onBack: () => void
   onOpenStats: () => void
