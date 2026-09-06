@@ -16,7 +16,7 @@ let authInstance: any = null
 export function getCloudApp() {
   if (!appInstance) {
     if (!ENV_ID) throw new Error('CloudBase 未配置环境 ID（VITE_CLOUDBASE_ENV）')
-    appInstance = tcb.init({ env: ENV_ID })
+    appInstance = tcb.init({ env: ENV_ID, region: 'ap-shanghai' })
     console.log('[CloudBase] app 初始化完成（SDK 3.x，组件按需自动注册）')
   }
   return appInstance
