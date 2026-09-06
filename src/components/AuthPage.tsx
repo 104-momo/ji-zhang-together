@@ -98,13 +98,19 @@ export default function AuthPage({ onSuccess, joinHint }: Props) {
     }
     setBusy(true)
     try {
+      // 网络请求加超时保护：避免请求挂起时按钮永远停在“请稍候…”
+      const withTimeout = <T,>(p: Promise<T>, ms = 20000): Promise<T> =>
+        Promise.race([
+          p,
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('请求超时，请检查网络后重试')), ms)),
+        ])
       if (mode === 'register') {
         // 先校验验证码，获取 token
-        const token = await auth.verifyCode(verificationId, code.trim())
+        const token = await withTimeout(auth.verifyCode(verificationId, code.trim()))
         // 再注册
-        await auth.signUp(email, code.trim(), token, password, nickname)
+        await withTimeout(auth.signUp(email, code.trim(), token, password, nickname))
       } else {
-        await auth.signIn(email, password)
+        await withTimeout(auth.signIn(email, password))
       }
       onSuccess()
     } catch (e: any) {
