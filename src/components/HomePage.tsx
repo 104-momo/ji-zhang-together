@@ -43,26 +43,6 @@ export default function HomePage({ myLedgers, loading, error, onRefresh, onCreat
         <p className="home-tagline">像聊天一样记账，说一句话，自动变成一笔账。</p>
       </div>
 
-      <div className="card">
-        <h2>建一本新账</h2>
-        <div className="field">
-          <label>账本名</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="如：和小王的合租账" />
-        </div>
-        <div className="field">
-          <label>你的昵称</label>
-          <input
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="在这本账里怎么称呼你"
-            onKeyDown={(e) => e.key === 'Enter' && void submit()}
-          />
-        </div>
-        <button className="btn-primary btn-block" onClick={() => void submit()} disabled={busy || !nickname.trim()}>
-          创建并进入
-        </button>
-      </div>
-
       {loading && myLedgers.length === 0 ? (
         <div style={{ textAlign: 'center', color: 'var(--ink-3)', fontSize: 13, padding: '24px 0' }}>正在加载账本…</div>
       ) : error ? (
@@ -94,8 +74,28 @@ export default function HomePage({ myLedgers, loading, error, onRefresh, onCreat
           ))}
         </>
       ) : (
-        <div style={{ textAlign: 'center', color: 'var(--ink-3)', fontSize: 13, padding: '20px 0' }}>还没有账本，在上面创建一本吧</div>
+        <div style={{ textAlign: 'center', color: 'var(--ink-3)', fontSize: 13, padding: '20px 0' }}>还没有账本，在下面创建一本吧</div>
       )}
+
+      <div className="card" style={{ marginTop: 8 }}>
+        <h2>建一本新账</h2>
+        <div className="field">
+          <label>账本名</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="如：和小王的合租账" />
+        </div>
+        <div className="field">
+          <label>你的昵称</label>
+          <input
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="在这本账里怎么称呼你"
+            onKeyDown={(e) => e.key === 'Enter' && void submit()}
+          />
+        </div>
+        <button className="btn-primary btn-block" onClick={() => void submit()} disabled={busy || !nickname.trim()}>
+          创建并进入
+        </button>
+      </div>
 
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8, marginBottom: 16 }}>
         <button
