@@ -131,9 +131,12 @@ export function useLedger() {
         // 单次轮询失败静默处理，下一轮自动重试
       }
     }
-    // 2 秒轮询：页面不可见（切后台/锁屏/切标签）时暂停，回到页面立即刷新一次再恢复。
-    // 目的：省云函数调用额度（双人常驻轮询约 260 万次/月，远超免费额度）
+    // 2 秒轮询：页面不可见（切后台/锁屏/切标签）时暂停，回到页面立即刷新一次再恢复；
+    // 页面可见但连续 30 秒无操作（挂机/只看不动）也暂停，有操作立即刷新并恢复。
+    // 目的：省 PostgreSQL 计算资源点（共享实例按 5 分钟活跃窗口计费，挂机=持续烧点）
+    const IDLE_MS = 30_000
     let timer: ReturnType<typeof setInterval> | null = null
+    let idleTimer: ReturnType<typeof setTimeout> | null = null
     const start = () => {
       if (timer) return
       timer = setInterval(refresh, 2000)
@@ -144,20 +147,41 @@ export function useLedger() {
         timer = null
       }
     }
+    const resetIdle = () => {
+      if (idleTimer) clearTimeout(idleTimer)
+      idleTimer = setTimeout(() => stop(), IDLE_MS)
+    }
+    const onUserActive = () => {
+      // 从空闲暂停恢复：先拉一次最新保证同步，再恢复轮询
+      if (document.visibilityState === 'visible' && !timer) {
+        void refresh()
+        start()
+      }
+      resetIdle()
+    }
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
         void refresh() // 回到页面立即拉一次最新，保证同步体验不变
         start()
+        resetIdle()
       } else {
         stop()
+        if (idleTimer) clearTimeout(idleTimer)
       }
     }
+    const events = ['pointerdown', 'keydown', 'touchstart', 'wheel']
+    events.forEach((ev) => document.addEventListener(ev, onUserActive, { passive: true }))
     document.addEventListener('visibilitychange', onVisibility)
     // 初始按当前可见性决定是否轮询（后台打开的页面不空转）
-    if (document.visibilityState === 'visible') start()
+    if (document.visibilityState === 'visible') {
+      start()
+      resetIdle()
+    }
     return () => {
       cancelled = true
       stop()
+      if (idleTimer) clearTimeout(idleTimer)
+      events.forEach((ev) => document.removeEventListener(ev, onUserActive))
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [current?.ledger.id]) // eslint-disable-line react-hooks/exhaustive-deps
