@@ -1,7 +1,7 @@
 {
-  "envId": "jizhang-together-d9es2tka134439b",
+  "envId": "cloudbase-d8gqnbpr077aca008",
   "region": "ap-shanghai",
-  "functionRoot": "cloudbase/functions",
+  "functionRoot": "cloudfunctions",
   "functions": [
     {
       "name": "ledgerApi",
@@ -10,14 +10,5 @@
       "runtime": "Nodejs16.13",
       "handler": "index.main"
     }
-  ],
-  "hosting": {
-    "ignore": [
-      "node_modules/**",
-      "cloudbase/**",
-      "scripts/**",
-      "src/**",
-      ".git/**"
-    ]
-  }
+  ]
 }

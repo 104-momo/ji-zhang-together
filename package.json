@@ -1,26 +1,36 @@
 {
-  "name": "ji-zhang-mvp",
+  "name": "ji-zhang-taro",
+  "version": "2.0.0",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "description": "一起记账 · 微信小程序（Taro 迁移版）",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
+    "build:weapp": "taro build --type weapp",
+    "dev:weapp": "npm run build:weapp -- --watch"
   },
   "dependencies": {
-    "@cloudbase/js-sdk": "^3.9.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "@babel/runtime": "^7.24.4",
+    "@tarojs/components": "4.2.1",
+    "@tarojs/helper": "4.2.1",
+    "@tarojs/plugin-framework-react": "4.2.1",
+    "@tarojs/plugin-platform-weapp": "4.2.1",
+    "@tarojs/react": "4.2.1",
+    "@tarojs/runtime": "4.2.1",
+    "@tarojs/shared": "4.2.1",
+    "@tarojs/taro": "4.2.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@types/node": "^24.13.3",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
-    "@vitejs/plugin-react": "^6.1.0",
-    "oxlint": "^1.79.0",
-    "typescript": "~6.0.2",
-    "vite": "^8.2.2"
+    "@babel/core": "^7.24.4",
+    "@babel/preset-react": "^7.29.7",
+    "@tarojs/cli": "4.2.1",
+    "@tarojs/webpack5-runner": "4.2.1",
+    "@types/react": "^18.3.3",
+    "@types/webpack-env": "^1.18.5",
+    "babel-preset-taro": "4.2.1",
+    "postcss": "^8.4.38",
+    "stylelint": "^16.6.1",
+    "typescript": "^5.4.5",
+    "webpack": "5.91.0"
   }
 }
