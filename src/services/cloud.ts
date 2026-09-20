@@ -3,13 +3,20 @@ import type { Category, Entry, Ledger, Member } from '../types'
 import type { LedgerAPI } from './api'
 import { CLOUD_ENV } from './env'
 
+/** 统一调用云函数，自动解包 success/data/error */
 export async function call(action: string, params: Record<string, any> = {}): Promise<any> {
-  const res = await Taro.cloud.callFunction({ name: 'ledgerApi', data: { action, ...params } })
+  const res = await Taro.cloud.callFunction({
+    name: 'ledgerApi',
+    data: { action, ...params },
+  })
   const result = (res as any).result
-  if (!result || result.success === false) throw new Error(result?.error || '操作失败')
+  if (!result || result.success === false) {
+    throw new Error(result?.error || '操作失败')
+  }
   return result.data
 }
 
+/** 邀请分享 path */
 export function createInviteLink(ledger: Ledger): string {
   return `/pages/index/index?join=${ledger.id}&code=${ledger.inviteCode}`
 }
@@ -48,3 +55,5 @@ export const cloudAPI: LedgerAPI = {
   async updateCategories(ledgerId, categories) { const data = await call('updateCategories', { ledgerId, categories }); return mapLedger(data) },
   watchEntries(_ledgerId, _onChange) { return () => {} },
 }
+
+export { CLOUD_ENV }
