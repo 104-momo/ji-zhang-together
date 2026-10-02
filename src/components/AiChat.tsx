@@ -48,10 +48,13 @@ export default function AiChat({ ledgerName, entries, members, onClose }: Props)
   const askAI = async (question: string) => {
     setLoading(true)
     try {
-      const model = (wx as any).cloud.extend.AI.createModel('hunyuan-exp')
+      if (!(wx as any).cloud?.extend?.AI) {
+        throw new Error('wx.cloud.extend.AI 不可用（需基础库 >= 3.15.1）')
+      }
+      const model = (wx as any).cloud.extend.AI.createModel('cloudbase')
       const context = buildContext(ledgerName, entries, members)
       const res = await model.generateText({
-        model: 'hunyuan-exp',
+        model: 'hy3',
         messages: [
           {
             role: 'system',
@@ -60,10 +63,17 @@ export default function AiChat({ ledgerName, entries, members, onClose }: Props)
           { role: 'user', content: question },
         ],
       })
-      const reply = res?.data?.choices?.[0]?.message?.content || '抱歉，我没理解这个问题'
+      console.log('[AI原始返回]', JSON.stringify(res))
+      const reply = res?.data?.choices?.[0]?.message?.content
+        || res?.choices?.[0]?.message?.content
+        || res?.data?.content
+        || res?.content
+        || JSON.stringify(res).slice(0, 300)
       setMsgs((m) => [...m, { role: 'ai', text: reply }])
     } catch (e: any) {
-      setMsgs((m) => [...m, { role: 'ai', text: 'AI 服务暂时不可用，请稍后再试' }])
+      console.error('[AI调用失败]', e)
+      const errMsg = e?.message || e?.errMsg || JSON.stringify(e)
+      setMsgs((m) => [...m, { role: 'ai', text: `AI错误：${errMsg}` }])
     } finally {
       setLoading(false)
     }

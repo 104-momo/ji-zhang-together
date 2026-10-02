@@ -23,7 +23,7 @@ export function createInviteLink(ledger: Ledger): string {
 
 function mapLedger(doc: any): Ledger { return { ...doc, id: doc.id } }
 function mapMember(doc: any): Member { return { ...doc, id: doc.id } }
-function mapEntry(doc: any): Entry { return { ...doc, id: doc.id } }
+function mapEntry(doc: any): Entry { return { ...doc, id: doc.id, amount: Number(doc.amount) || 0 } }
 
 export const cloudAPI: LedgerAPI = {
   async createLedger(name, nickname) {
@@ -53,6 +53,11 @@ export const cloudAPI: LedgerAPI = {
   async updateNickname(ledgerId, nickname) { const data = await call('updateNickname', { ledgerId, nickname }); return mapMember(data) },
   async regenerateInviteCode(ledgerId) { const data = await call('regenerateInviteCode', { ledgerId }); const ledger = mapLedger(data.ledger); return { ledger, inviteLink: createInviteLink(ledger) } },
   async updateCategories(ledgerId, categories) { const data = await call('updateCategories', { ledgerId, categories }); return mapLedger(data) },
+  async updateBudget(ledgerId, amount) { const data = await call('updateBudget', { ledgerId, amount }); return mapLedger(data) },
+  async updateCategoryBudgets(ledgerId, budgets) { const data = await call('updateCategoryBudgets', { ledgerId, budgets }); return mapLedger(data) },
+  async subscribeReminder(ledgerId) { return call('subscribeReminder', { ledgerId }) },
+  async unsubscribeReminder(ledgerId) { return call('unsubscribeReminder', { ledgerId }) },
+  async getReminderStatus(ledgerId) { return call('getReminderStatus', { ledgerId }) },
   watchEntries(_ledgerId, _onChange) { return () => {} },
 }
 

@@ -11,16 +11,54 @@ const _ = db.command
 const ledgers = db.collection('ledgers')
 const members = db.collection('members')
 const entries = db.collection('entries')
+const subscriptions = db.collection('subscriptions')
+
+/** 订阅消息模板 ID：在 mp 后台「功能 → 订阅消息 → 公共模板库」添加后填入，或在云函数环境变量 REMINDER_TMPL_ID 配置 */
+const REMINDER_TMPL_ID = process.env.REMINDER_TMPL_ID || ''
+/** 模板字段（按实际申请到的模板调整 key 与文案） */
+function reminderData(ledgerName) {
+  return {
+    thing1: { value: `记得记录「${String(ledgerName || '共享账本').slice(0, 16)}」今日开销` },
+    time2: { value: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }) },
+    thing3: { value: '说一句话就能记一笔，别让开销溜走' },
+  }
+}
 
 function validateLen(val, max, field) {
   if (val && String(val).length > max) throw new Error(`${field}过长（最多 ${max} 字）`)
+}
+
+const DEFAULT_CATEGORIES = ['餐饮', '交通', '购物', '日用', '娱乐', '居住', '医疗', '人情', '其他']
+const MAX_AMOUNT = 100000000 // 1 亿
+
+/** 金额清洗：必须是有限正数，最多两位小数，有上限。防止负数/字符串/NaN/超大数污染统计 */
+function cleanAmount(v, field = '金额') {
+  const n = Number(v)
+  if (!Number.isFinite(n)) throw new Error(`${field}不正确`)
+  if (n <= 0) throw new Error(`${field}必须大于 0`)
+  if (n > MAX_AMOUNT) throw new Error(`${field}超出上限`)
+  return Math.round(n * 100) / 100
+}
+/** 分类清洗：不在账本自定义/默认分类内一律归为“其他” */
+function cleanCategory(cat, customCats) {
+  const allow = Array.isArray(customCats) && customCats.length > 0 ? customCats : DEFAULT_CATEGORIES
+  const c = String(cat == null ? '' : cat).trim().slice(0, 10)
+  return allow.includes(c) ? c : '其他'
+}
+/** 文本字段清洗：限长，去除首尾空白 */
+function cleanText(v, max, field) {
+  if (v == null) return undefined
+  const s = String(v).trim().slice(0, max)
+  return s
 }
 
 function docToLedger(d) {
   if (!d) return null
   return {
     id: d._id, name: d.name, ownerId: d.owner_id, inviteCode: d.invite_code,
-    categories: d.categories || null, createdAt: d.created_at || Date.now(), updatedAt: d.updated_at || Date.now(),
+    categories: d.categories || null, monthlyBudget: d.monthly_budget || null,
+    categoryBudgets: d.category_budgets && typeof d.category_budgets === 'object' && !Array.isArray(d.category_budgets) ? d.category_budgets : null,
+    createdAt: d.created_at || Date.now(), updatedAt: d.updated_at || Date.now(),
   }
 }
 function docToMember(d) {
@@ -129,8 +167,15 @@ async function parseByLLM(text, categories) {
     const jm = content.match(/\{[\s\S]*\}/)
     if (!jm) return null
     const parsed = JSON.parse(jm[0])
-    if (!parsed.amount || !Number.isFinite(Number(parsed.amount))) return null
-    return { amount: Number(parsed.amount), category: parsed.category || '其他', description: parsed.description || text, note: parsed.note || undefined, matchedBy: 'llm' }
+    const amount = Number(parsed.amount)
+    if (!(amount > 0) || !Number.isFinite(amount) || amount > MAX_AMOUNT) return null
+    return {
+      amount: Math.round(amount * 100) / 100,
+      category: String(parsed.category || '其他').slice(0, 10),
+      description: String(parsed.description || text).slice(0, 100),
+      note: parsed.note ? String(parsed.note).slice(0, 100) : undefined,
+      matchedBy: 'llm',
+    }
   } catch (e) { console.error('[LLM]', e.message); return null }
 }
 async function parseEntry(text, categories) {
@@ -157,6 +202,8 @@ const handlers = {
   async createLedger({ name, nickname }, ctx) {
     const uid = ctx.uid
     validateLen(name, 30, '账本名'); validateLen(nickname, 20, '昵称')
+    const ownedCnt = await ledgers.where({ owner_id: uid }).count()
+    if (ownedCnt.total >= 30) throw new Error('创建账本数量已达上限（30 本）')
     const ledgerName = (name || '').trim() || '我的账本'
     const memberName = (nickname || '').trim() || '我'
     const inviteCode = genInviteCode()
@@ -175,6 +222,8 @@ const handlers = {
     if (ledger.inviteCode !== inviteCode) throw new Error('邀请码无效')
     const existing = await getMyMember(ledgerId, uid)
     if (existing) return { ledger, member: existing }
+    const cnt = await members.where({ ledger_id: ledgerId }).count()
+    if (cnt.total >= 20) throw new Error('该账本成员已达上限（20 人）')
     const memberName = (nickname || '').trim() || '我'
     const mr = await members.add({ data: { ledger_id: ledgerId, uid, name: memberName, role: 'member', joined_at: Date.now() } })
     return { ledger, member: { id: mr._id, ledgerId, uid, nickname: memberName, role: 'member', joinedAt: Date.now() } }
@@ -183,7 +232,7 @@ const handlers = {
   async getLedger({ id }, ctx) {
     const l = await getLedgerDoc(id)
     if (!l) throw new Error('账本不存在')
-    if (ctx && ctx.uid) await assertMember(id, ctx.uid)
+    await assertMember(id, ctx.uid)
     return l
   },
 
@@ -236,6 +285,10 @@ const handlers = {
     if (!myMember) throw new Error('你还没有加入这个账本')
     const parsed = await parseEntry(text, ledger.categories)
     if (!parsed) throw new Error('没识别出这笔账的金额，换种说法试试？')
+    parsed.amount = cleanAmount(parsed.amount)
+    parsed.category = cleanCategory(parsed.category, ledger.categories)
+    const safeDesc = cleanText(parsed.description, 100, '描述') || '支出'
+    const safeNote = cleanText(parsed.note, 100, '备注') || null
     const entryNickname = nickname || myMember.nickname || '我'
     const rawText = (text || '').trim()
     const now = Date.now()
@@ -243,24 +296,26 @@ const handlers = {
     const res = await entries.add({
       data: {
         ledger_id: ledgerId, member_id: myMember.id, uid, text: rawText,
-        amount: parsed.amount, category: parsed.category, description: parsed.description,
-        note: parsed.note || null, entry_date: today, created_at: now, updated_at: now,
+        amount: parsed.amount, category: parsed.category, description: safeDesc,
+        note: safeNote, entry_date: today, created_at: now, updated_at: now,
         history: [], deleted: false,
       },
     })
     return docToEntry({
       _id: res._id, ledger_id: ledgerId, member_id: myMember.id, uid, text: rawText,
-      amount: parsed.amount, category: parsed.category, description: parsed.description,
-      note: parsed.note || null, entry_date: today, created_at: now, updated_at: now,
+      amount: parsed.amount, category: parsed.category, description: safeDesc,
+      note: safeNote, entry_date: today, created_at: now, updated_at: now,
       history: [], deleted: false,
     }, entryNickname)
   },
 
   async updateEntry({ entryId, patch }, ctx) {
     const uid = ctx.uid
+    if (!patch || typeof patch !== 'object') throw new Error('修改内容不正确')
     const res = await entries.doc(entryId).get()
     const entry = res.data
     if (!entry) throw new Error('账目不存在')
+    if (entry.deleted === true) throw new Error('账目已删除，不能修改')
     const ledger = await getLedgerDoc(entry.ledger_id)
     if (!ledger) throw new Error('账本不存在')
     const isOwner = ledger.owner_id === uid
@@ -271,11 +326,14 @@ const handlers = {
     }
     const opNick = myMember ? myMember.nickname : '我'
     const pd = { updated_at: Date.now() }
-    if (patch.amount !== undefined) pd.amount = patch.amount
-    if (patch.category !== undefined) pd.category = patch.category
-    if (patch.note !== undefined) pd.note = patch.note
-    if (patch.description !== undefined) pd.description = patch.description
-    if (patch.rawText !== undefined) pd.text = patch.rawText
+    if (patch.amount !== undefined) pd.amount = cleanAmount(patch.amount)
+    if (patch.category !== undefined) pd.category = cleanCategory(patch.category, ledger.categories)
+    if (patch.note !== undefined) pd.note = cleanText(patch.note, 100, '备注') || null
+    if (patch.description !== undefined) pd.description = cleanText(patch.description, 100, '描述') || '支出'
+    if (patch.rawText !== undefined) {
+      validateLen(patch.rawText, 200, '记账内容')
+      pd.text = String(patch.rawText || '').trim()
+    }
     pd.history = (entry.history || []).concat([{ uid, nickname: opNick, at: Date.now(), action: '修改' }])
     await entries.doc(entryId).update({ data: pd })
     const up = await entries.doc(entryId).get()
@@ -288,6 +346,7 @@ const handlers = {
     const res = await entries.doc(entryId).get()
     const entry = res.data
     if (!entry) throw new Error('账目不存在')
+    if (entry.deleted === true) return { ok: true } // 已删除，幂等返回
     const ledger = await getLedgerDoc(entry.ledger_id)
     if (!ledger) throw new Error('账本不存在')
     const isOwner = ledger.owner_id === uid
@@ -316,7 +375,7 @@ const handlers = {
     await assertOwner(ledgerId, ctx.uid)
     const res = await members.doc(memberId).get()
     const member = res.data
-    if (!member) throw new Error('成员不存在')
+    if (!member || member.ledger_id !== ledgerId) throw new Error('成员不存在')
     if (member.uid === ctx.uid) throw new Error('不能移除自己')
     await members.doc(memberId).remove()
     const toRemove = await entries.where({ ledger_id: ledgerId, uid: member.uid, deleted: false }).get()
@@ -356,30 +415,142 @@ const handlers = {
 
   async updateCategories({ ledgerId, categories }, ctx) {
     await assertOwner(ledgerId, ctx.uid)
-    const cats = Array.isArray(categories) && categories.length > 0 ? categories : null
-    await ledgers.doc(ledgerId).update({ data: { categories: cats, updated_at: Date.now() } })
+    let cats = null
+    if (Array.isArray(categories) && categories.length > 0) {
+      cats = [...new Set(categories.map((c) => String(c == null ? '' : c).trim()).filter(Boolean))]
+        .slice(0, 30)
+        .map((c) => c.slice(0, 10))
+      if (cats.length === 0) cats = null
+    }
+    const data = { categories: cats, updated_at: Date.now() }
+    // 同步清理已被删除分类的预算额度
+    const ledger = await getLedgerDoc(ledgerId)
+    if (ledger && ledger.categoryBudgets && typeof ledger.categoryBudgets === 'object') {
+      const allow = Array.isArray(cats) && cats.length > 0 ? cats : DEFAULT_CATEGORIES
+      const kept = {}
+      Object.keys(ledger.categoryBudgets).forEach((c) => { if (allow.includes(c)) kept[c] = ledger.categoryBudgets[c] })
+      data.category_budgets = Object.keys(kept).length > 0 ? kept : null
+    }
+    await ledgers.doc(ledgerId).update({ data })
     return await getLedgerDoc(ledgerId)
   },
 
-  async initSchema() {
-    return { ok: true, message: '文档型数据库无需建表，首次写入自动创建集合', collections: ['ledgers', 'members', 'entries'] }
+  /** 设置/清除每月预算（仅创建者）。amount 为正数时设置，为 null/0 时清除 */
+  async updateBudget({ ledgerId, amount }, ctx) {
+    await assertOwner(ledgerId, ctx.uid)
+    let budget = null
+    if (amount !== null && amount !== undefined && Number(amount) > 0) budget = cleanAmount(amount, '预算')
+    await ledgers.doc(ledgerId).update({ data: { monthly_budget: budget, updated_at: Date.now() } })
+    return await getLedgerDoc(ledgerId)
   },
 
-  async testDb() {
-    try {
-      const c = await ledgers.count()
-      return { ok: true, type: 'document', ledgerCount: c.total }
-    } catch (e) { return { ok: false, error: e.message } }
+  /**
+   * 批量设置分类月度预算（仅创建者）。
+   * budgets: { 分类名: 金额 }，金额为正数时设置，null/undefined/''/0 时清除该分类预算。
+   * 分类名必须命中账本分类白名单，整体读-改-写回。
+   */
+  async updateCategoryBudgets({ ledgerId, budgets }, ctx) {
+    await assertOwner(ledgerId, ctx.uid)
+    const ledger = await getLedgerDoc(ledgerId)
+    if (!ledger) throw new Error('账本不存在')
+    if (!budgets || typeof budgets !== 'object' || Array.isArray(budgets)) throw new Error('预算数据不正确')
+    const allow = Array.isArray(ledger.categories) && ledger.categories.length > 0 ? ledger.categories : DEFAULT_CATEGORIES
+    const current = ledger.categoryBudgets && typeof ledger.categoryBudgets === 'object' ? { ...ledger.categoryBudgets } : {}
+    const keys = Object.keys(budgets).slice(0, 50)
+    for (const cat of keys) {
+      if (typeof cat !== 'string' || !allow.includes(cat)) continue
+      const v = budgets[cat]
+      if (v === null || v === undefined || v === '' || Number(v) <= 0) {
+        delete current[cat]
+      } else {
+        current[cat] = cleanAmount(v, `${cat}预算`)
+      }
+    }
+    const out = Object.keys(current).length > 0 ? current : null
+    await ledgers.doc(ledgerId).update({ data: { category_budgets: out, updated_at: Date.now() } })
+    return await getLedgerDoc(ledgerId)
+  },
+
+  /** 查询当前用户在某账本的提醒订阅状态 */
+  async getReminderStatus({ ledgerId }, ctx) {
+    await assertMember(ledgerId, ctx.uid)
+    const res = await subscriptions.where({ ledger_id: ledgerId, uid: ctx.uid }).limit(1).get()
+    return { subscribed: res.data.length > 0, templateConfigured: !!REMINDER_TMPL_ID }
+  },
+
+  /** 订阅每日记账提醒（前端需先通过 wx.requestSubscribeMessage 拿到用户授权） */
+  async subscribeReminder({ ledgerId }, ctx) {
+    const ledger = await getLedgerDoc(ledgerId)
+    if (!ledger) throw new Error('账本不存在')
+    await assertMember(ledgerId, ctx.uid)
+    const exist = await subscriptions.where({ ledger_id: ledgerId, uid: ctx.uid }).limit(1).get()
+    if (exist.data.length === 0) {
+      await subscriptions.add({ data: { ledger_id: ledgerId, uid: ctx.uid, ledger_name: ledger.name, created_at: Date.now(), last_sent_date: '' } })
+    }
+    return { ok: true, templateConfigured: !!REMINDER_TMPL_ID }
+  },
+
+  /** 取消订阅 */
+  async unsubscribeReminder({ ledgerId }, ctx) {
+    const res = await subscriptions.where({ ledger_id: ledgerId, uid: ctx.uid }).get()
+    for (const r of res.data) await subscriptions.doc(r._id).remove()
+    return { ok: true }
   },
 }
 
+/** 定时触发器：每晚给订阅者发送记账提醒（幂等，每人每天最多一条） */
+async function runDailyReminder() {
+  if (!REMINDER_TMPL_ID) { console.log('[reminder] REMINDER_TMPL_ID 未配置，跳过'); return { skipped: true } }
+  const today = new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' }).replace(/\//g, '-')
+  let sent = 0, failed = 0
+  let pageData
+  try {
+    const MAX_LIMIT = 100
+    let batch = []
+    let offset = 0
+    do {
+      batch = (await subscriptions.skip(offset).limit(MAX_LIMIT).get()).data
+      for (const s of batch) {
+        if (s.last_sent_date === today) continue
+        const openid = String(s.uid || '').replace(/^wx_/, '')
+        if (!openid) continue
+        try {
+          await cloud.openapi.subscribeMessage.send({
+            touser: openid,
+            templateId: REMINDER_TMPL_ID,
+            page: 'pages/index/index',
+            data: reminderData(s.ledger_name),
+            miniprogramState: 'trial',
+            lang: 'zh_CN',
+          })
+          await subscriptions.doc(s._id).update({ data: { last_sent_date: today, last_ok_at: Date.now() } })
+          sent++
+        } catch (e) {
+          failed++
+          await subscriptions.doc(s._id).update({ data: { last_fail_at: Date.now(), last_fail_msg: String(e && e.errMsg || e.message || 'fail').slice(0, 100) } }).catch(() => {})
+        }
+      }
+      offset += batch.length
+    } while (batch.length === MAX_LIMIT)
+  } catch (e) { console.error('[reminder]', e) }
+  return { sent, failed, date: today }
+}
+
 exports.main = async (event, context) => {
+  // 定时触发器事件（无用户态，走每日提醒广播）。
+  // 必须同时满足：触发器名匹配 + 携带 cron Message + 不含 action（前端调用必带 action），
+  // 防止客户端在 callFunction 的 data 里伪造 TriggerName 触发群发。
+  if (event && event.TriggerName === 'dailyReminder'
+    && typeof event.Message === 'string'
+    && !Object.prototype.hasOwnProperty.call(event, 'action')) {
+    try { return { success: true, data: await runDailyReminder() } }
+    catch (e) { console.error('[ledgerApi:timer]', e); return { success: false, error: e.message || '定时任务失败' } }
+  }
   const { action, ...params } = event || {}
   const handler = handlers[action]
   if (!handler) return { success: false, error: `未知 action: ${action}` }
   try {
-    const SKIP_AUTH = ['initSchema', 'testDb']
-    const ctx = SKIP_AUTH.includes(action) ? {} : { uid: await getUid(event) }
+    const ctx = { uid: await getUid(event) }
     const data = await handler(params, ctx)
     return { success: true, data }
   } catch (e) {

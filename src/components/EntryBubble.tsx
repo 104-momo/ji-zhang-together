@@ -1,21 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Taro from '@tarojs/taro'
 import { Button, Input, Picker, Text, View } from '@tarojs/components'
 import type { Category, Entry } from '../types'
 import { CATEGORIES } from '../types'
-import { CATEGORY_COLOR_VAR, avatarColor } from '../utils/colors'
-import { IconPencil, IconTrash } from './Icons'
+import { avatarColor, categoryColor } from '../utils/colors'
+import { IconTrash } from './Icons'
 
 function fmtTime(ts: number): string { const d = new Date(ts); const pad = (n: number) => String(n).padStart(2, '0'); return `${pad(d.getHours())}:${pad(d.getMinutes())}` }
 function isDeleted(e: Entry): boolean { return e.amount === 0 && (e.note || '').includes('【已删除】') }
 
 interface Props {
-  entry: Entry; myMemberId: string; isOwner: boolean
+  entry: Entry; myMemberId: string; isOwner: boolean; categories?: string[]
   onUpdate: (entryId: string, patch: { amount?: number; category?: Category; note?: string; rawText?: string }) => void
   onDelete: (entryId: string) => void
 }
 
-export default function EntryBubble({ entry, myMemberId, isOwner, onUpdate, onDelete }: Props) {
+export default function EntryBubble({ entry, myMemberId, isOwner, categories, onUpdate, onDelete }: Props) {
   const [editing, setEditing] = useState(false)
   const [amount, setAmount] = useState(String(entry.amount))
   const [category, setCategory] = useState<Category>(entry.category)
@@ -26,11 +26,12 @@ export default function EntryBubble({ entry, myMemberId, isOwner, onUpdate, onDe
   const canEdit = mine || isOwner
   const deleted = isDeleted(entry)
   const lastHistory = entry.history.length > 0 ? entry.history[entry.history.length - 1] : null
-  const catIndex = Math.max(0, CATEGORIES.indexOf(category))
+  const catList = useMemo(() => [...new Set<string>([...CATEGORIES, ...(categories || []), entry.category])], [categories, entry.category])
+  const catIndex = Math.max(0, catList.indexOf(category))
   const save = () => {
     const amt = parseFloat(amount)
     if (!Number.isFinite(amt) || amt <= 0) return
-    onUpdate(entry.id, { amount: amt, category, note: note.trim() || undefined, rawText: text.trim() || undefined })
+    onUpdate(entry.id, { amount: amt, category: catList[catIndex] as Category, note: note.trim() || undefined, rawText: text.trim() || undefined })
     setEditing(false)
   }
   const handleDelete = () => { Taro.showModal({ title: '删除这笔账？', content: '删除后将保留一条留痕记录，其他人可见。', confirmText: '删除', confirmColor: '#c0504a', success: (res) => { if (res.confirm) onDelete(entry.id) } }) }
@@ -42,15 +43,14 @@ export default function EntryBubble({ entry, myMemberId, isOwner, onUpdate, onDe
         <View className="bubble-meta">
           <Text className="nick">{entry.nickname}</Text>
           <Text className="time"> · {fmtTime(entry.createdAt)}</Text>
-          {canEdit ? (<Button className="bubble-edit-btn" onClick={() => setEditing((v) => !v)} aria-label="编辑"><IconPencil size={12} /> 编辑</Button>) : null}
         </View>
         <View className="bubble" onClick={() => canEdit && setEditing((v) => !v)}>
           <View className="bubble-main">
             <Text className="desc">{entry.rawText || entry.category}</Text>
-            <Text className="amount">¥{entry.amount.toFixed(2)}</Text>
+            <Text className="amount">¥{Number(entry.amount || 0).toFixed(2)}</Text>
           </View>
           <View className="bubble-sub">
-            <Text className="cat-tag" style={{ background: CATEGORY_COLOR_VAR[entry.category] }}>{entry.category}</Text>
+            <Text className="cat-tag" style={{ background: categoryColor(entry.category) }}>{entry.category}</Text>
             {entry.note ? <Text className="note">{entry.note}</Text> : null}
           </View>
           {lastHistory ? (<View className="history">{lastHistory.nickname} {lastHistory.action === '修改' ? '修改过' : '删除过'}</View>) : null}
@@ -58,13 +58,13 @@ export default function EntryBubble({ entry, myMemberId, isOwner, onUpdate, onDe
         {editing && canEdit ? (
           <View className="edit-panel" style={{ borderRadius: 'var(--r-card)', padding: 10, marginTop: 6, border: '1px solid var(--line)' }}>
             <View className="edit-row">
-              <Input className="edit-amount" type="digit" value={amount} onInput={(e) => setAmount(e.detail.value)} placeholder="金额" />
-              <Picker mode="selector" range={CATEGORIES as unknown as string[]} value={catIndex} onChange={(e) => setCategory(CATEGORIES[Number(e.detail.value)])}>
+              <Input className="edit-amount" type="digit" value={amount} onInput={(e) => setAmount(e.detail.value)} placeholder="金额" placeholderStyle={mine ? 'color: rgba(255,255,255,0.8)' : 'color: #b0a896'} />
+              <Picker mode="selector" range={catList} value={catIndex} onChange={(e) => setCategory(catList[Number(e.detail.value)] as Category)}>
                 <View className="edit-cat">{category} ▾</View>
               </Picker>
             </View>
-            <Input className="edit-text" value={text} onInput={(e) => setText(e.detail.value)} placeholder="记账内容（一开始输入的文字）" />
-            <Input className="edit-note" value={note} onInput={(e) => setNote(e.detail.value)} placeholder="备注（可选）" />
+            <Input className="edit-text" value={text} onInput={(e) => setText(e.detail.value)} placeholder="记账内容（一开始输入的文字）" placeholderStyle={mine ? 'color: rgba(255,255,255,0.8)' : 'color: #b0a896'} />
+            <Input className="edit-note" value={note} onInput={(e) => setNote(e.detail.value)} placeholder="备注（可选）" placeholderStyle={mine ? 'color: rgba(255,255,255,0.8)' : 'color: #b0a896'} />
             <View className="edit-actions">
               <Button className="btn-del" onClick={handleDelete} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><IconTrash size={12} /> 删除</Button>
               <Button className="btn-cancel" onClick={() => setEditing(false)}>取消</Button>

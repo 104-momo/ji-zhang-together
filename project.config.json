@@ -2,7 +2,7 @@
   "miniprogramRoot": "dist/",
   "projectname": "ji-zhang-together",
   "description": "一起记账 · 微信小程序",
-  "appid": "wx05a49c442243ddbb",
+  "appid": "touristappid",
   "setting": {
     "urlCheck": false,
     "es6": false,
@@ -39,11 +39,20 @@
     "disableUseStrict": false,
     "minifyWXML": true,
     "showES6CompileOption": false,
-    "useCompilerPlugins": false
+    "useCompilerPlugins": false,
+    "compileWorklet": false,
+    "localPlugins": false,
+    "condition": false
   },
   "compileType": "miniprogram",
   "cloudfunctionRoot": "cloudfunctions/",
-  "libVersion": "3.8.0",
+  "libVersion": "3.15.1",
   "srcMiniprogramRoot": "dist/",
-  "condition": {}
+  "condition": {},
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "editorSetting": {}
 }

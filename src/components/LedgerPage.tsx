@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
+import Taro from '@tarojs/taro'
 import { Button, ScrollView, Text, View } from '@tarojs/components'
 import type { Category, Entry } from '../types'
 import StatHeader from './StatHeader'
@@ -7,8 +8,9 @@ import EntryBubble from './EntryBubble'
 import EntryInput from './EntryInput'
 import LedgerManage from './LedgerManage'
 import AiChat from './AiChat'
-import { IconChart, IconGear, IconAI } from './Icons'
-import { setShare } from '../share'
+import { IconChart, IconGear, IconAI, IconSearch, IconBudget } from './Icons'
+import { setShare, resetShare } from '../share'
+import { makeInviteToken } from '../services/invite'
 import type { LedgerView } from '../store/useLedger'
 
 interface Props {
@@ -18,12 +20,17 @@ interface Props {
   onDeleteEntry: (entryId: string) => Promise<void>
   onBack: () => void
   onOpenStats: () => void
+  onOpenSearch: () => void
+  onOpenBudget: () => void
   onRename: (name: string) => Promise<void>
   onRemoveMember: (memberId: string) => Promise<void>
   onUpdateNickname: (nickname: string) => Promise<void>
   onRegenerateInvite: () => Promise<void>
   onUpdateCategories: (categories: string[]) => Promise<void>
   onDeleteLedger: () => Promise<void>
+  onGetReminderStatus: () => Promise<{ subscribed: boolean; templateConfigured: boolean }>
+  onSubscribeReminder: () => Promise<{ ok: boolean; templateConfigured?: boolean }>
+  onUnsubscribeReminder: () => Promise<void>
 }
 
 export default function LedgerPage({
@@ -33,12 +40,17 @@ export default function LedgerPage({
   onDeleteEntry,
   onBack,
   onOpenStats,
+  onOpenSearch,
+  onOpenBudget,
   onRename,
   onRemoveMember,
   onUpdateNickname,
   onRegenerateInvite,
   onUpdateCategories,
   onDeleteLedger,
+  onGetReminderStatus,
+  onSubscribeReminder,
+  onUnsubscribeReminder,
 }: Props) {
   const { ledger, members, entries, myMember } = view
   const [toast, setToast] = useState<string | null>(null)
@@ -63,6 +75,7 @@ export default function LedgerPage({
 
   useEffect(() => {
     setShare(ledger)
+    return () => resetShare()
   }, [ledger])
 
   useEffect(() => {
@@ -86,14 +99,22 @@ export default function LedgerPage({
         ledgerName={ledger.name}
         entries={entries}
         memberCount={members.length}
+        monthlyBudget={ledger.monthlyBudget}
         onBack={onBack}
+        onInvite={() => Taro.setClipboardData({
+          data: makeInviteToken(ledger),
+          success: () => Taro.showToast({ title: '邀请口令已复制，去微信发给好友', icon: 'none' }),
+          fail: () => Taro.showToast({ title: '复制失败', icon: 'none' }),
+        })}
       />
       <View className="ledger-actions">
         <Button className="ledger-action-btn" onClick={onOpenStats}><IconChart size={14} /> 统计</Button>
-        <Button className="ledger-action-btn" onClick={() => setAiOpen(true)}><IconAI size={14} /> AI助手</Button>
+        <Button className="ledger-action-btn" onClick={onOpenSearch}><IconSearch size={14} /> 搜索</Button>
+        <Button className="ledger-action-btn" onClick={onOpenBudget}><IconBudget size={14} /> 预算</Button>
         <Button className="ledger-action-btn" onClick={() => setManageOpen(true)}><IconGear size={14} /> 管理</Button>
+        <Button className="ledger-action-btn" onClick={() => setAiOpen(true)}><IconAI size={14} /> AI助手</Button>
       </View>
-      <CategoryStats entries={entries} />
+      <CategoryStats entries={entries} members={members} categories={ledger.categories || undefined} />
       <ScrollView className="msg-list" scrollY enableFlex scrollIntoView={scrollTarget}>
         {activeEntries.length === 0 ? (
           <View className="empty">
@@ -117,6 +138,7 @@ export default function LedgerPage({
                     entry={e}
                     myMemberId={myMember.id}
                     isOwner={isOwner}
+                    categories={ledger.categories || undefined}
                     onUpdate={(id, patch) => void onUpdateEntry(id, patch)}
                     onDelete={(id) => void onDeleteEntry(id)}
                   />
@@ -149,6 +171,9 @@ export default function LedgerPage({
           onUpdateCategories={onUpdateCategories}
           onDeleteLedger={onDeleteLedger}
           onClose={() => setManageOpen(false)}
+          onGetReminderStatus={onGetReminderStatus}
+          onSubscribeReminder={onSubscribeReminder}
+          onUnsubscribeReminder={onUnsubscribeReminder}
         />
       ) : null}
     </View>

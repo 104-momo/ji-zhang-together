@@ -7,6 +7,10 @@ export interface Ledger {
   ownerId: string
   inviteCode: string
   categories?: string[]
+  /** 每月预算（元），未设置时为空 */
+  monthlyBudget?: number | null
+  /** 分类月度预算（元），键为分类名；未设置时为空 */
+  categoryBudgets?: Record<string, number> | null
   createdAt: number
 }
 

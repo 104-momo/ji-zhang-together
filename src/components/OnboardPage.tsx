@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Button, Input, ScrollView, Text, View } from '@tarojs/components'
+import { Button, Image, Input, ScrollView, Text, View } from '@tarojs/components'
 import { auth } from '../services/auth'
-import { IconWallet } from './Icons'
+import logoImg from '../assets/logo.jpeg'
 
 interface Props { onSuccess: () => void; joinHint?: string }
 
@@ -21,7 +21,7 @@ export default function OnboardPage({ onSuccess, joinHint }: Props) {
     <ScrollView className="page home" scrollY>
       <View className="home-hero">
         <View className="home-logo">
-          <Text className="home-logo-badge"><IconWallet size={24} /></Text>
+          <Image className="home-logo-badge" src={logoImg} mode="aspectFill" />
           <Text className="home-logo-text">一起记账</Text>
         </View>
         <Text className="home-tagline">像聊天一样记账，说一句话，自动变成一笔账。</Text>

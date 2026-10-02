@@ -1,15 +1,20 @@
-import type { PropsWithChildren } from 'react'
-import Taro, { useLaunch } from '@tarojs/taro'
-import './app.css'
+import { Component, PropsWithChildren } from 'react'
+import { View } from '@tarojs/components'
+import Taro from '@tarojs/taro'
 import { CLOUD_ENV } from './services/env'
+import './app.css'
 
-function App({ children }: PropsWithChildren<any>) {
-  useLaunch(() => {
-    if (CLOUD_ENV) {
-      Taro.cloud.init({ env: CLOUD_ENV, traceUser: true })
+export default class App extends Component<PropsWithChildren> {
+  componentDidMount() {
+    if (CLOUD_ENV && Taro.cloud) {
+      Taro.cloud.init({
+        env: CLOUD_ENV,
+        traceUser: true,
+      })
     }
-  })
-  return children
-}
+  }
 
-export default App
+  render() {
+    return <View>{this.props.children}</View>
+  }
+}

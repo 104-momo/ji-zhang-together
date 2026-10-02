@@ -1,67 +1,42 @@
-# 一起记账 · 微信小程序（Taro 迁移版）
+# 一起记账吖 · 微信小程序
 
-> **本分支为微信小程序版本**。`main` 分支保留原始 H5（React + Vite + PostgreSQL）版本。
+> **本分支（wechat-miniprogram）为微信小程序版本**。`main` 分支保留原始 H5（React + Vite + PostgreSQL）版本。
 
-多人共享记账小程序——说一句话就把账记了，自动识别金额和分类，支持多人协作、邀请码加入、消费统计。
+多人共享记账小程序——说一句话就把账记了，自动识别金额和分类，支持多人协作、口令邀请加入、分类/成员统计、月度与分类预算、搜索、日历、月度/年度 AI 报告与每日记账提醒。
 
-技术栈：**Taro 4（React 18 + TypeScript）+ 微信云开发（文档型数据库）**。
+技术栈：**Taro 4（React 18 + TypeScript）+ 微信云开发（wx-server-sdk 文档型数据库）**。
+
+## 本地运行
+
+```bash
+npm install
+npm run dev:weapp     # 或 npm run build:weapp
+```
+
+用微信开发者工具导入项目根目录，填入自己的小程序 AppID，并在 `.env` 中配置云环境 ID（参考 `.env.example`）：
+
+```
+TARO_APP_CLOUDBASE_ENV=your-cloud-env-id
+```
+
+## 云端部署
+
+1. 在微信开发者工具开通云开发，创建环境，并把环境 ID 填入 `.env` 与 `cloudbaserc.json`
+2. 在「数据库」中创建四个集合：`ledgers`、`members`、`entries`、`subscriptions`，权限均设为「所有用户不可读写」
+3. 右键 `cloudfunctions/ledgerApi` →「上传并部署：云端安装依赖（不上传 node_modules）」
+4. （可选）云函数环境变量配置 `ZHIPU_API_KEY`（一句话解析大模型兜底）、`REMINDER_TMPL_ID`（每日提醒订阅消息模板）
+5. 云函数测试面板调用 `{"action":"whoami"}` 验证连通与登录态
 
 ## 分支说明
 
 | 分支 | 版本 | 说明 |
 |------|------|------|
 | `main` | H5 网页版 | 原始 React + Vite + CloudBase PostgreSQL 版本 |
-| `wechat-miniprogram` | **微信小程序版（本分支）** | Taro 迁移，参赛版本，接入微信云开发文档型数据库 |
-
-## 目录结构
-
-```
-ji-zhang-taro/
-├── src/
-│   ├── app.tsx / app.config.ts / app.css   # 入口、页面注册、全局样式
-│   ├── pages/index/                        # 唯一页面（App 内做视图切换）
-│   ├── components/                         # 全部 UI 组件
-│   ├── services/
-│   │   ├── env.ts     # 运行模式判断
-│   │   ├── api.ts     # 数据层统一接口
-│   │   ├── cloud.ts   # 微信云开发实现（Taro.cloud.callFunction）
-│   │   └── auth.ts    # openid 一键身份
-│   ├── store/useLedger.ts                  # 账本状态管理
-│   ├── parser/                             # 一句话记账解析引擎（规则 + AI）
-│   └── share.ts                            # 分享卡片内容
-├── cloudfunctions/ledgerApi/               # 云函数（文档型数据库版）
-│   ├── index.js                            # 14 个 action，权限服务端校验
-│   └── package.json                        # wx-server-sdk 依赖
-├── project.config.json                     # 微信开发者工具项目配置
-└── .env.example                            # 环境变量示例
-```
-
-## 相比 H5 版的适配
-
-| H5 版 | 小程序版 | 说明 |
-|-------|---------|------|
-| 邮箱+验证码登录 | openid 一键身份 | 云函数识别 `event.userInfo.openId` → `wx_<openid>` |
-| CloudBase JS SDK | `Taro.cloud.callFunction` | 平台自动注入身份 |
-| 邀请链接 | 小程序分享卡片 | 路径带 `?join=&code=` 自动加入 |
-| PostgreSQL | 微信云开发文档型数据库 | ledgers / members / entries 三个集合 |
-| 浏览器 API | Taro API | showModal / setClipboardData / getStorageSync 等 |
-
-## 本地运行
-
-1. `npm install`
-2. 复制 `.env.example` 为 `.env`，填入云开发环境 ID
-3. `npm run build:weapp`（产物在 `dist/`）
-4. 微信开发者工具导入项目根目录
-
-## 云端部署
-
-1. 在微信开发者工具开通云开发，创建环境
-2. 在「数据库」中创建三个集合：`ledgers`、`members`、`entries`（权限设为"所有用户不可读写"）
-3. 右键 `cloudfunctions/ledgerApi` →「上传并部署：云端安装依赖」
-4. 云函数测试面板调用 `{"action":"testDb"}` 验证连通
+| `wechat-miniprogram` | **微信小程序版（本分支）** | Taro 迁移，接入微信云开发文档型数据库，微信免登 |
 
 ## 版本历史
 
-- **v3.0（tag: v3）**：接入微信云开发 AI——AI 财务对话助手（混元 hunyuan-exp）、语音输入按钮（同声传译插件，需企业主体，当前个人主体暂用键盘语音）
-- **v2.0（wechat-miniprogram 分支）**：Taro 迁移为微信小程序，云开发文档型数据库，参赛版本
+- **v4（wechat-miniprogram 分支）**：月度预算与分类预算（进度/超支提醒）、流水搜索、记账日历、月度/年度 AI 报告、每日记账订阅提醒、统计时间维度（今天/本月/上月/今年/全部）、成员维度统计、口令邀请、真机适配与多轮安全加固
+- **v3（wechat-miniprogram 分支）**：小程序迭代版——口令邀请路线、云函数对抗式安全修复、统计增强
+- **v2.0（wechat-miniprogram 分支）**：Taro 迁移为微信小程序，云开发文档型数据库，微信免登
 - **v1.0（main 分支）**：原始 H5 网页版，React + Vite + CloudBase PostgreSQL

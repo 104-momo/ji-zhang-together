@@ -148,6 +148,19 @@ export const cloudAPI: LedgerAPI = {
     return mapLedger(data)
   },
 
+  // 以下为接口兼容占位（本文件为旧 H5/PG 版死代码，新小程序走 ./cloud）
+  async updateBudget(ledgerId, amount) {
+    const data = await call('updateBudget', { ledgerId, amount })
+    return mapLedger(data)
+  },
+  async updateCategoryBudgets(ledgerId, budgets) {
+    const data = await call('updateCategoryBudgets', { ledgerId, budgets })
+    return mapLedger(data)
+  },
+  async subscribeReminder(ledgerId) { return call('subscribeReminder', { ledgerId }) },
+  async unsubscribeReminder(ledgerId) { return call('unsubscribeReminder', { ledgerId }) },
+  async getReminderStatus(ledgerId) { return call('getReminderStatus', { ledgerId }) },
+
   /**
    * 实时订阅占位：数据存储在 PostgreSQL（经云函数访问），CloudBase 文档库 watch 不适用。
    * 实时同步由 useLedger 中的定时轮询（listMembers/listEntries）负责，这里返回空取消函数以兼容接口。

@@ -41,3 +41,10 @@ export const IconSignOut = (p: IconProps) => <Glyph {...p}>↩</Glyph>
 export const IconMic = (p: IconProps) => <Glyph {...p}>🎤</Glyph>
 export const IconMicStop = (p: IconProps) => <Glyph {...p}>⏹</Glyph>
 export const IconAI = (p: IconProps) => <Glyph {...p}>✨</Glyph>
+export const IconSearch = (p: IconProps) => <Glyph {...p}>🔍</Glyph>
+export const IconCalendar = (p: IconProps) => <Glyph {...p}>📅</Glyph>
+export const IconReport = (p: IconProps) => <Glyph {...p}>🧾</Glyph>
+export const IconBell = (p: IconProps) => <Glyph {...p}>🔔</Glyph>
+export const IconBudget = (p: IconProps) => <Glyph {...p}>🎯</Glyph>
+export const IconChevronLeft = (p: IconProps) => <Glyph {...p}>‹</Glyph>
+export const IconChevronRight = (p: IconProps) => <Glyph {...p}>›</Glyph>

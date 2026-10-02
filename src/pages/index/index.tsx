@@ -6,8 +6,15 @@ import { auth, type AuthUser } from '../../services/auth'
 import HomePage from '../../components/HomePage'
 import LedgerPage from '../../components/LedgerPage'
 import StatsPage from '../../components/StatsPage'
+import SearchPage from '../../components/SearchPage'
+import CalendarPage from '../../components/CalendarPage'
+import ReportPage from '../../components/ReportPage'
+import BudgetPage from '../../components/BudgetPage'
+import CategoryBudgetPage from '../../components/CategoryBudgetPage'
 import OnboardPage from '../../components/OnboardPage'
-import { shareState } from '../../share'
+import { shareState, resetShare } from '../../share'
+
+type SubPage = 'ledger' | 'stats' | 'search' | 'calendar' | 'report' | 'budget' | 'catBudget'
 
 interface JoinParams {
   ledgerId: string
@@ -32,19 +39,19 @@ export default function Index() {
     createLedger, joinLedger, openLedger, leaveLedger,
     addEntry, updateEntry, deleteEntry,
     renameLedger, removeMember, updateNickname, regenerateInviteCode, deleteLedger, updateCategories,
+    updateBudget, updateCategoryBudgets, getReminderStatus, subscribeReminder, unsubscribeReminder,
     clearError, setError,
   } = useLedger()
 
   const [join, setJoin] = useState<JoinParams | null>(null)
   const [user, setUser] = useState<AuthUser | null>(() => auth.getCurrentUser())
-  const [showStats, setShowStats] = useState(false)
+  const [subPage, setSubPage] = useState<SubPage>('ledger')
   const joinHandledRef = useRef(false)
 
   useShareAppMessage(() => ({
     title: shareState.title || '一起记账',
     path: shareState.path || '/pages/index/index',
   }))
-
   const readJoin = () => {
     if (joinHandledRef.current) return
     const p = readJoinParams()
@@ -56,7 +63,7 @@ export default function Index() {
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((u) => {
       setUser(u)
-      if (!u) { leaveLedger(); setShowStats(false) }
+      if (!u) { leaveLedger(); setSubPage('ledger') }
     })
     return unsub
   }, [leaveLedger])
@@ -70,10 +77,11 @@ export default function Index() {
     }
   }, [user, join, current, joinLedger, setError])
 
-  useEffect(() => { if (!current) setShowStats(false) }, [current])
+  useEffect(() => { if (!current) setSubPage('ledger') }, [current])
 
   const handleCreate = async (name: string, nickname: string) => { await createLedger(name, nickname) }
   const handleOpen = (ledgerId: string) => { openLedger(ledgerId).catch((e) => setError(e instanceof Error ? e.message : '打开失败')) }
+  const handleJoin = async (ledgerId: string, code: string, nickname: string) => { await joinLedger(ledgerId, code, nickname) }
 
   const handleAuthSuccess = async () => {
     const u = auth.getCurrentUser()
@@ -103,20 +111,68 @@ export default function Index() {
   }
 
   let page
-  if (current && showStats) {
-    page = <StatsPage entries={current.entries} members={current.members} onBack={() => setShowStats(false)} />
+  const isOwner = !!current && (current.ledger.ownerId === current.myMember.id || (!!current.myMember.uid && current.ledger.ownerId === current.myMember.uid))
+  if (current && subPage === 'stats') {
+    page = (
+      <StatsPage
+        entries={current.entries} members={current.members} categories={current.ledger.categories || undefined}
+        onBack={() => setSubPage('ledger')}
+        onOpenCalendar={() => setSubPage('calendar')}
+        onOpenReport={() => setSubPage('report')}
+      />
+    )
+  } else if (current && subPage === 'search') {
+    page = <SearchPage entries={current.entries} members={current.members} categories={current.ledger.categories || undefined} onBack={() => setSubPage('ledger')} />
+  } else if (current && subPage === 'calendar') {
+    page = <CalendarPage entries={current.entries} members={current.members} onBack={() => setSubPage('stats')} />
+  } else if (current && subPage === 'budget') {
+    page = (
+      <BudgetPage
+        entries={current.entries} categories={current.ledger.categories || undefined}
+        monthlyBudget={current.ledger.monthlyBudget}
+        categoryBudgets={current.ledger.categoryBudgets}
+        isOwner={isOwner}
+        onSetBudget={updateBudget}
+        onOpenCatBudget={() => setSubPage('catBudget')}
+        onBack={() => setSubPage('ledger')}
+      />
+    )
+  } else if (current && subPage === 'catBudget') {
+    page = (
+      <CategoryBudgetPage
+        categories={current.ledger.categories || undefined}
+        categoryBudgets={current.ledger.categoryBudgets}
+        onBack={() => setSubPage('budget')}
+        onSave={updateCategoryBudgets}
+      />
+    )
+  } else if (current && subPage === 'report') {
+    page = (
+      <ReportPage
+        entries={current.entries} members={current.members} categories={current.ledger.categories || undefined}
+        monthlyBudget={current.ledger.monthlyBudget}
+        onBack={() => setSubPage('stats')}
+      />
+    )
   } else if (current) {
     page = (
       <LedgerPage view={current} onAddEntry={addEntry} onUpdateEntry={updateEntry} onDeleteEntry={deleteEntry}
-        onBack={leaveLedger} onOpenStats={() => setShowStats(true)} onRename={handleRename}
+        onBack={leaveLedger}
+        onOpenStats={() => setSubPage('stats')}
+        onOpenSearch={() => setSubPage('search')}
+        onOpenBudget={() => setSubPage('budget')}
+        onRename={handleRename}
         onRemoveMember={handleRemoveMember} onUpdateNickname={handleUpdateNickname}
         onRegenerateInvite={handleRegenerate} onUpdateCategories={handleUpdateCats}
-        onDeleteLedger={handleDeleteLedger} />
+        onDeleteLedger={handleDeleteLedger}
+        onGetReminderStatus={getReminderStatus}
+        onSubscribeReminder={subscribeReminder}
+        onUnsubscribeReminder={unsubscribeReminder} />
     )
   } else {
     page = (
       <HomePage myLedgers={myLedgers} loading={ledgersLoading} error={ledgersError}
-        onRefresh={() => void refreshMyLedgers()} onCreate={handleCreate} onOpen={handleOpen} />
+        onRefresh={() => void refreshMyLedgers()} onCreate={handleCreate} onOpen={handleOpen} onJoin={handleJoin} />
     )
   }
 

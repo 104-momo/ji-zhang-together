@@ -1,5 +1,6 @@
 import Taro from '@tarojs/taro'
 import type { Category, Entry, Ledger, Member } from '../types'
+import { CATEGORIES } from '../types'
 import { parseEntryText } from '../parser'
 import type { LedgerAPI } from './api'
 
@@ -82,5 +83,22 @@ export const mockAPI: LedgerAPI = {
   async updateNickname(ledgerId, nickname, memberId) { const all = load<Member>(K_MEMBERS); const m = all.find((x) => x.ledgerId === ledgerId && x.id === memberId); if (!m) throw new Error('成员不存在'); m.nickname = nickname.trim() || m.nickname; save<Member>(K_MEMBERS, all); return m },
   async regenerateInviteCode(ledgerId) { const all = load<Ledger>(K_LEDGERS); const l = all.find((x) => x.id === ledgerId); if (!l) throw new Error('账本不存在'); l.inviteCode = genInviteCode(); save<Ledger>(K_LEDGERS, all); return { ledger: l, inviteLink: createInviteLink(l) } },
   async updateCategories(ledgerId, categories) { const all = load<Ledger>(K_LEDGERS); const l = all.find((x) => x.id === ledgerId); if (!l) throw new Error('账本不存在'); l.categories = categories.length > 0 ? categories : undefined; save<Ledger>(K_LEDGERS, all); return l },
+  async updateBudget(ledgerId, amount) { const all = load<Ledger>(K_LEDGERS); const l = all.find((x) => x.id === ledgerId); if (!l) throw new Error('账本不存在'); l.monthlyBudget = amount && amount > 0 ? amount : null; save<Ledger>(K_LEDGERS, all); return l },
+  async updateCategoryBudgets(ledgerId, budgets) {
+    const all = load<Ledger>(K_LEDGERS); const l = all.find((x) => x.id === ledgerId); if (!l) throw new Error('账本不存在')
+    const allow = l.categories && l.categories.length > 0 ? l.categories : (CATEGORIES as readonly string[])
+    const cur: Record<string, number> = { ...(l.categoryBudgets || {}) }
+    Object.keys(budgets).slice(0, 50).forEach((cat) => {
+      if (!allow.includes(cat)) return
+      const v = budgets[cat]
+      if (v === null || v === undefined || Number(v) <= 0) delete cur[cat]
+      else cur[cat] = Math.round(Number(v) * 100) / 100
+    })
+    l.categoryBudgets = Object.keys(cur).length > 0 ? cur : null
+    save<Ledger>(K_LEDGERS, all); return l
+  },
+  async subscribeReminder() { return { ok: true, templateConfigured: false } },
+  async unsubscribeReminder() { return { ok: true } },
+  async getReminderStatus() { return { subscribed: false, templateConfigured: false } },
   watchEntries(ledgerId, onChange) { if (!listeners[ledgerId]) listeners[ledgerId] = []; listeners[ledgerId].push(onChange); return () => { listeners[ledgerId] = (listeners[ledgerId] || []).filter((cb) => cb !== onChange) } },
 }

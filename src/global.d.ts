@@ -9,3 +9,9 @@ declare const process: {
 
 // 微信同声传译插件
 declare function requirePlugin(name: string): any
+
+// 静态图片资源
+declare module '*.jpg' { const src: string; export default src }
+declare module '*.jpeg' { const src: string; export default src }
+declare module '*.png' { const src: string; export default src }
+declare module '*.svg' { const src: string; export default src }

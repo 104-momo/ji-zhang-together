@@ -1,5 +1,5 @@
 {
-  "envId": "cloudbase-d8gqnbpr077aca008",
+  "envId": "your-cloud-env-id",
   "region": "ap-shanghai",
   "functionRoot": "cloudfunctions",
   "functions": [

@@ -7,7 +7,8 @@ export default defineConfig<'webpack5'>(async (merge) => {
   const baseConfig: UserConfigExport<'webpack5'> = {
     projectName: 'ji-zhang',
     date: '2026-9-14',
-    designWidth: 750,
+    // 样式按 375 逻辑像素口径书写（H5 迁移），需用 375 设计稿：1px → 2rpx
+    designWidth: 375,
     deviceRatio: {
       640: 2.34 / 2,
       750: 1,

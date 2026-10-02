@@ -16,3 +16,8 @@ export function avatarColor(seed: string): string {
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
   return AVATAR_COLORS[h % AVATAR_COLORS.length]
 }
+
+/** 分类取色：内置分类用主题色变量，自定义分类按名称稳定取色 */
+export function categoryColor(cat: string): string {
+  return CATEGORY_COLOR_VAR[cat as Category] ?? CATEGORY_HEX[cat] ?? avatarColor(cat)
+}

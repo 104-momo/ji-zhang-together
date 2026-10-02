@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.tsx'
+import App from './app.tsx'
 
 // 全局错误处理：把错误显示在页面顶部，方便调试
 const errorBox = document.createElement('div')

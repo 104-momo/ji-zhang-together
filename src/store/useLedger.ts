@@ -65,13 +65,13 @@ export function useLedger() {
     const ledgerId = current.ledger.id
     const refresh = async () => {
       try {
-        const { members, entries } = await api.getLedgerFull(ledgerId)
+        const full = await api.getLedgerFull(ledgerId)
         if (cancelled) return
         setCurrent((c) => {
           if (!c) return c
           const pendings = c.entries.filter((e) => e.id.startsWith('pending-'))
-          const uniquePendings = pendings.filter((p) => !entries.some((en) => en.rawText === p.rawText && en.nickname === p.nickname && Math.abs(en.createdAt - p.createdAt) < 30000))
-          return { ...c, members, entries: [...uniquePendings, ...entries] }
+          const uniquePendings = pendings.filter((p) => !full.entries.some((en) => en.rawText === p.rawText && en.nickname === p.nickname && Math.abs(en.createdAt - p.createdAt) < 30000))
+          return { ...c, ledger: full.ledger, members: full.members, entries: [...uniquePendings, ...full.entries] }
         })
       } catch {}
     }
@@ -179,6 +179,33 @@ export function useLedger() {
     setCurrent({ ...current, ledger })
   }, [current, assertOwner])
 
+  const updateBudget = useCallback(async (amount: number | null) => {
+    if (!current) return; assertOwner()
+    const ledger = await api.updateBudget(current.ledger.id, amount)
+    setCurrent({ ...current, ledger })
+  }, [current, assertOwner])
+
+  const updateCategoryBudgets = useCallback(async (budgets: Record<string, number | null>) => {
+    if (!current) return; assertOwner()
+    const ledger = await api.updateCategoryBudgets(current.ledger.id, budgets)
+    setCurrent({ ...current, ledger })
+  }, [current, assertOwner])
+
+  const getReminderStatus = useCallback(() => {
+    if (!current) return Promise.resolve({ subscribed: false, templateConfigured: false })
+    return api.getReminderStatus(current.ledger.id)
+  }, [current])
+
+  const subscribeReminder = useCallback(async () => {
+    if (!current) throw new Error('请先进入账本')
+    return api.subscribeReminder(current.ledger.id)
+  }, [current])
+
+  const unsubscribeReminder = useCallback(async () => {
+    if (!current) return
+    await api.unsubscribeReminder(current.ledger.id)
+  }, [current])
+
   const canModify = useCallback((entry: Entry): boolean => {
     if (!current) return false
     return entry.memberId === current.myMember.id || isOwnerOf(current.ledger, current.myMember)
@@ -190,6 +217,7 @@ export function useLedger() {
     myLedgers, ledgersLoading, ledgersError, refreshMyLedgers, current, error,
     createLedger, joinLedger, openLedger, leaveLedger, addEntry, updateEntry, deleteEntry,
     renameLedger, removeMember, updateNickname, regenerateInviteCode, deleteLedger,
-    updateCategories, canModify, clearError, setError,
+    updateCategories, updateBudget, updateCategoryBudgets, getReminderStatus, subscribeReminder, unsubscribeReminder,
+    canModify, clearError, setError,
   }
 }
