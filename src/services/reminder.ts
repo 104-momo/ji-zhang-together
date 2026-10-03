@@ -12,7 +12,7 @@ import Taro from '@tarojs/taro'
  *
  * 留空时：前端提示「提醒功能待配置」，不会调起微信授权。
  */
-export const REMINDER_TEMPLATE_ID: string = ''
+export const REMINDER_TEMPLATE_ID: string = '-wq0aZvKONxkdQeqgJCMnnn4Ev1uYXnczkduVE0OQ3g'
 
 /** 调起微信订阅授权，返回用户对本模板的选择 */
 export async function requestReminderAuth(): Promise<'accept' | 'reject' | 'ban'> {

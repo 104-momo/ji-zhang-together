@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import Taro from '@tarojs/taro'
 import { Button, ScrollView, Text, View } from '@tarojs/components'
 import type { Category, Entry } from '../types'
@@ -73,6 +73,69 @@ export default function LedgerPage({
   }
   const isOwner = ledger.ownerId === myMember.id || (!!myMember.uid && ledger.ownerId === myMember.uid)
 
+  // 流水里出现过的日期（升序、去重）
+  const dayKeys = useMemo(() => {
+    const keys: string[] = []
+    for (const e of activeEntries) {
+      const k = getDayKey(e.createdAt)
+      if (keys[keys.length - 1] !== k) keys.push(k)
+    }
+    return keys
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEntries])
+
+  // 顶部统计跟随流水滚动位置：当前可视区所处的日期
+  const [statDay, setStatDay] = useState('')
+  const statDayKey = statDay || todayKey
+  const dayTopsRef = useRef<Map<string, number>>(new Map())
+
+  const pickDay = (scrollTop: number) => {
+    const map = dayTopsRef.current
+    if (!map.size || !dayKeys.length) return
+    let cur = dayKeys[0]
+    for (const k of dayKeys) {
+      const top = map.get(k)
+      if (top == null) continue
+      if (top <= scrollTop + 2) cur = k
+      else break
+    }
+    setStatDay((prev) => (prev === cur ? prev : cur))
+  }
+
+  // 渲染后测量每个日期分隔条在滚动内容里的位置（条目变化导致位置变化时重测）
+  useEffect(() => {
+    if (activeEntries.length === 0) return
+    const timer = setTimeout(() => {
+      Taro.createSelectorQuery()
+        .selectAll('.msg-day-divider').boundingClientRect()
+        .select('.msg-list').boundingClientRect()
+        .select('.msg-list').scrollOffset()
+        .exec((res: any[]) => {
+          const divs = res?.[0]
+          const listRect = res?.[1]
+          const scroll = res?.[2]
+          if (!Array.isArray(divs) || !listRect || !scroll) return
+          const map = new Map<string, number>()
+          for (const r of divs) {
+            if (!r || !r.id) continue
+            map.set(String(r.id).slice(2), r.top - listRect.top + scroll.scrollTop)
+          }
+          dayTopsRef.current = map
+          pickDay(scroll.scrollTop)
+        })
+    }, 60)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries])
+
+  // 当前统计日期被删空时回退到最新一天
+  useEffect(() => {
+    if (statDay && dayKeys.length && !dayKeys.includes(statDay)) {
+      setStatDay(dayKeys[dayKeys.length - 1])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statDay, dayKeys.join(',')])
+
   useEffect(() => {
     setShare(ledger)
     return () => resetShare()
@@ -87,6 +150,7 @@ export default function LedgerPage({
   const handleAdd = async (text: string) => {
     try {
       await onAddEntry(text)
+      setStatDay(todayKey)
     } catch (e) {
       setToast(e instanceof Error ? e.message : '记账失败')
       setTimeout(() => setToast(null), 3000)
@@ -114,8 +178,8 @@ export default function LedgerPage({
         <Button className="ledger-action-btn" onClick={() => setManageOpen(true)}><IconGear size={14} /> 管理</Button>
         <Button className="ledger-action-btn" onClick={() => setAiOpen(true)}><IconAI size={14} /> AI助手</Button>
       </View>
-      <CategoryStats entries={entries} members={members} categories={ledger.categories || undefined} />
-      <ScrollView className="msg-list" scrollY enableFlex scrollIntoView={scrollTarget}>
+      <CategoryStats entries={entries} members={members} categories={ledger.categories || undefined} dayKey={statDayKey} />
+      <ScrollView className="msg-list" scrollY enableFlex scrollIntoView={scrollTarget} onScroll={(e) => pickDay(e.detail.scrollTop)}>
         {activeEntries.length === 0 ? (
           <View className="empty">
             <Text className="empty-title">还没有账目</Text>

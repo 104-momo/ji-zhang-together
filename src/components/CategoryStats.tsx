@@ -5,9 +5,12 @@ import { CATEGORIES } from '../types'
 import { categoryColor } from '../utils/colors'
 import { IconChart, IconChevronDown, IconUsers } from './Icons'
 
-interface Props { entries: Entry[]; members?: Member[]; categories?: string[] }
+interface Props { entries: Entry[]; members?: Member[]; categories?: string[]; dayKey?: string }
 interface CatStat { category: string; amount: number; count: number; percent: number }
 interface MemStat { nickname: string; amount: number; count: number; percent: number }
+
+const pad = (n: number) => String(n).padStart(2, '0')
+const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 function memberColor(name: string) {
   const palette = ['#1f8a70', '#4a90c2', '#d2688c', '#9b7bd4', '#c08431', '#5fa87a', '#d4645c']
@@ -15,12 +18,23 @@ function memberColor(name: string) {
   return palette[h % palette.length]
 }
 
-export default function CategoryStats({ entries, members, categories }: Props) {
+export default function CategoryStats({ entries, members, categories, dayKey }: Props) {
   const [tab, setTab] = useState<'' | 'cat' | 'member'>('')
   const isValid = (e: Entry) => !(e.amount === 0 && (e.note || '').includes('【已删除】'))
 
+  // 统计目标日期（YYYY-MM-DD），默认今天
+  const now = new Date()
+  const todayK = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const targetKey = dayKey || todayK
+  const [Y, M, D] = targetKey.split('-').map(Number)
+  const inDay = (e: Entry) => {
+    const d = new Date(e.createdAt)
+    return d.getFullYear() === Y && d.getMonth() === M - 1 && d.getDate() === D
+  }
+  const dayTitle = `${M}月${D}日 ${WEEK[new Date(Y, M - 1, D).getDay()]}`
+
   const catList = useMemo<CatStat[]>(() => {
-    const active = entries.filter(isValid)
+    const active = entries.filter((e) => isValid(e) && inDay(e))
     const total = active.reduce((s, e) => s + Number(e.amount || 0), 0)
     const map = new Map<string, { amount: number; count: number }>()
     for (const e of active) { const cur = map.get(e.category) ?? { amount: 0, count: 0 }; cur.amount += Number(e.amount || 0); cur.count += 1; map.set(e.category, cur) }
@@ -29,10 +43,10 @@ export default function CategoryStats({ entries, members, categories }: Props) {
     for (const c of allCats) { const v = map.get(c); if (v && v.amount > 0) list.push({ category: c, amount: v.amount, count: v.count, percent: total > 0 ? (v.amount / total) * 100 : 0 }) }
     list.sort((a, b) => b.amount - a.amount)
     return list
-  }, [entries, categories])
+  }, [entries, categories, targetKey])
 
   const memList = useMemo<MemStat[]>(() => {
-    const active = entries.filter(isValid)
+    const active = entries.filter((e) => isValid(e) && inDay(e))
     const total = active.reduce((s, e) => s + Number(e.amount || 0), 0)
     const nameOf = (e: Entry) => members?.find((m) => m.id === e.memberId)?.nickname || e.nickname || '成员'
     const map = new Map<string, { amount: number; count: number }>()
@@ -45,7 +59,7 @@ export default function CategoryStats({ entries, members, categories }: Props) {
     return Array.from(map.entries())
       .map(([nickname, v]) => ({ nickname, amount: v.amount, count: v.count, percent: total > 0 ? (v.amount / total) * 100 : 0 }))
       .sort((a, b) => b.amount - a.amount)
-  }, [entries, members])
+  }, [entries, members, targetKey])
 
   const total = catList.reduce((s, c) => s + c.amount, 0)
   if (catList.length === 0) return null
@@ -58,13 +72,11 @@ export default function CategoryStats({ entries, members, categories }: Props) {
         <Button className={`stat-tab ${tab === 'cat' ? 'open' : ''}`} onClick={() => toggle('cat')}>
           <Text className="stat-tab-icon"><IconChart size={14} /></Text>
           <Text className="stat-tab-text">分类</Text>
-          <Text className="stat-tab-total">¥{total.toFixed(0)}</Text>
           <Text className={`stat-tab-arrow ${tab === 'cat' ? 'open' : ''}`}><IconChevronDown size={12} /></Text>
         </Button>
         <Button className={`stat-tab ${tab === 'member' ? 'open' : ''}`} onClick={() => toggle('member')}>
           <Text className="stat-tab-icon"><IconUsers size={14} /></Text>
           <Text className="stat-tab-text">成员</Text>
-          <Text className="stat-tab-total">¥{total.toFixed(0)}</Text>
           <Text className={`stat-tab-arrow ${tab === 'member' ? 'open' : ''}`}><IconChevronDown size={12} /></Text>
         </Button>
       </View>
@@ -97,7 +109,10 @@ export default function CategoryStats({ entries, members, categories }: Props) {
               </View>
             </View>
           ))}
-          <View className="cat-total">合计 <Text className="cat-total-strong">¥{total.toFixed(2)}</Text></View>
+          <View className="cat-total">
+            <Text className="cat-total-day">{targetKey === todayK ? `今天 · ${dayTitle}` : dayTitle}</Text>
+            <Text>合计 <Text className="cat-total-strong">¥{total.toFixed(2)}</Text></Text>
+          </View>
         </View>
       ) : null}
     </View>

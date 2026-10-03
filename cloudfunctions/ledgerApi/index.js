@@ -13,14 +13,41 @@ const members = db.collection('members')
 const entries = db.collection('entries')
 const subscriptions = db.collection('subscriptions')
 
-/** 订阅消息模板 ID：在 mp 后台「功能 → 订阅消息 → 公共模板库」添加后填入，或在云函数环境变量 REMINDER_TMPL_ID 配置 */
-const REMINDER_TMPL_ID = process.env.REMINDER_TMPL_ID || ''
-/** 模板字段（按实际申请到的模板调整 key 与文案） */
-function reminderData(ledgerName) {
+/** 订阅消息模板 ID：mp 后台「功能 → 订阅消息 → 我的模板」中查看；环境变量 REMINDER_TMPL_ID 优先 */
+const REMINDER_TMPL_ID = process.env.REMINDER_TMPL_ID || '-wq0aZvKONxkdQeqgJCMnnn4Ev1uYXnczkduVE0OQ3g'
+/** 上海时区当前时间，格式 YYYY-MM-DD HH:mm（微信 time 类型字段要求） */
+function shNowText() {
+  const d = new Date(Date.now() + 8 * 3600 * 1000)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`
+}
+/** 上海时区今日 0 点与本月 1 日 0 点的毫秒时间戳 */
+function shRangeStarts() {
+  const d = new Date(Date.now() + 8 * 3600 * 1000)
+  const y = d.getUTCFullYear(), m = d.getUTCMonth(), day = d.getUTCDate()
+  return { todayStart: Date.UTC(y, m, day) - 8 * 3600 * 1000, monthStart: Date.UTC(y, m, 1) - 8 * 3600 * 1000 }
+}
+/** 汇总某账本自 sinceTs 起的有效账目金额 */
+async function sumEntriesSince(ledgerId, sinceTs) {
+  const $agg = db.command.aggregate
+  const r = await entries.aggregate()
+    .match({ ledger_id: ledgerId, deleted: _.neq(true), created_at: _.gte(sinceTs) })
+    .group({ _id: null, total: $agg.sum('$amount') })
+    .end()
+  return r.list && r.list[0] ? Number(r.list[0].total) || 0 : 0
+}
+/**
+ * 模板字段（与 mp 后台「我的模板」详情一一对应）：
+ * time1 时间 / thing4 温馨提示 / thing9 账本名称 / amount15 今日支出 / character_string14 预算占比
+ * thing ≤20 字；amount 为数字字符串；character_string 仅允许数字字母符号（≤32），不能含中文
+ */
+function reminderData({ ledgerName, todayAmount, usedPct }) {
   return {
-    thing1: { value: `记得记录「${String(ledgerName || '共享账本').slice(0, 16)}」今日开销` },
-    time2: { value: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }) },
-    thing3: { value: '说一句话就能记一笔，别让开销溜走' },
+    time1: { value: shNowText() },
+    thing4: { value: '说一句话就能记一笔，别让开销溜走' },
+    thing9: { value: String(ledgerName || '共享账本').slice(0, 20) },
+    amount15: { value: Number(todayAmount || 0).toFixed(2) },
+    character_string14: { value: usedPct === null || usedPct === undefined ? '-' : `${Math.round(usedPct)}%` },
   }
 }
 
@@ -147,20 +174,30 @@ function parseByRules(text) {
 }
 async function parseByLLM(text, categories) {
   const key = process.env.ZHIPU_API_KEY
-  if (!key) return null
+  // Node 16 运行时无全局 fetch；未配置 key 或不支持时直接降级为规则解析
+  if (!key || typeof fetch !== 'function') return null
   try {
     const catList = (categories && categories.length > 0 ? categories : ['餐饮', '交通', '购物', '日用', '娱乐', '居住', '医疗', '人情', '其他']).join('、')
-    const resp = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: 'glm-4-flash', temperature: 0.1,
-        messages: [
-          { role: 'system', content: `你是记账解析助手。从用户输入中提取金额、分类和备注。只返回 JSON，格式：{"amount":数字,"category":"${catList}中的一个","description":"简短描述","note":"备注或空字符串"}。` },
-          { role: 'user', content: text },
-        ],
-      }),
-    })
+    // 6 秒超时兜底，避免大模型接口挂起把整个云函数拖到 10s 网关超时
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 6000)
+    let resp
+    try {
+      resp = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({
+          model: 'glm-4-flash', temperature: 0.1,
+          messages: [
+            { role: 'system', content: `你是记账解析助手。从用户输入中提取金额、分类和备注。只返回 JSON，格式：{"amount":数字,"category":"${catList}中的一个","description":"简短描述","note":"备注或空字符串"}。` },
+            { role: 'user', content: text },
+          ],
+        }),
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
     const data = await resp.json()
     const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content
     if (!content) return null
@@ -502,6 +539,7 @@ const handlers = {
 async function runDailyReminder() {
   if (!REMINDER_TMPL_ID) { console.log('[reminder] REMINDER_TMPL_ID 未配置，跳过'); return { skipped: true } }
   const today = new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' }).replace(/\//g, '-')
+  const { todayStart, monthStart } = shRangeStarts()
   let sent = 0, failed = 0
   let pageData
   try {
@@ -515,11 +553,25 @@ async function runDailyReminder() {
         const openid = String(s.uid || '').replace(/^wx_/, '')
         if (!openid) continue
         try {
+          // 实时统计：今日支出 + 本月预算使用率（账本被删则跳过该订阅）
+          let todayAmount = 0, usedPct = null
+          try {
+            const ledger = await getLedgerDoc(s.ledger_id)
+            if (!ledger) { await subscriptions.doc(s._id).remove().catch(() => {}); continue }
+            const [todaySum, monthSum] = await Promise.all([
+              sumEntriesSince(s.ledger_id, todayStart),
+              sumEntriesSince(s.ledger_id, monthStart),
+            ])
+            todayAmount = todaySum
+            if (ledger.monthlyBudget && ledger.monthlyBudget > 0) {
+              usedPct = (monthSum / ledger.monthlyBudget) * 100
+            }
+          } catch (statErr) { console.error('[reminder:stat]', s.ledger_id, statErr.message) }
           await cloud.openapi.subscribeMessage.send({
             touser: openid,
             templateId: REMINDER_TMPL_ID,
             page: 'pages/index/index',
-            data: reminderData(s.ledger_name),
+            data: reminderData({ ledgerName: s.ledger_name, todayAmount, usedPct }),
             miniprogramState: 'trial',
             lang: 'zh_CN',
           })

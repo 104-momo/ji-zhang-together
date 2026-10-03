@@ -4,3 +4,4 @@ dist/
 .env
 .DS_Store
 project.private.config.json
+ui-design-runs/

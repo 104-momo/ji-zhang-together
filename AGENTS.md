@@ -10,10 +10,11 @@ npm run dev:weapp     # watch 构建
 npm run build:weapp   # 类型无关编译，产物到 dist/（微信开发者工具导入项目根目录）
 ```
 - 微信开发者工具导入后，appid 填自己的小程序 AppID；开通云开发并创建环境。
-- 个人环境配置（**均不入库**，参考 `.env.example`）：
-  - `.env`：`TARO_APP_CLOUDBASE_ENV=<云环境ID>`
-  - `project.config.json`：`appid`
-  - `cloudbaserc.json`：`envId`
+- 个人环境配置（仓库中均为**占位模板**，克隆后必须在本地改成真实值，否则开发者工具报 `[40013] invalid appid`、云函数调用 system error）：
+  - `.env`（不入库）：`TARO_APP_CLOUDBASE_ENV=<云环境ID>`，参考 `.env.example`
+  - `project.config.json`（入库为占位 `touristappid`）：本地改为真实 `appid`
+  - `cloudbaserc.json`（入库为占位 `your-cloud-env-id`）：本地改为真实 `envId`
+  - **推送/发布到公开仓库前，必须把后两个文件还原为占位值**（`.env` 已被 gitignore 自动排除）。
 - 云函数部署：开发者工具中右键 `cloudfunctions/ledgerApi` →「上传并部署：云端安装依赖（不上传 node_modules）」。
 - 数据库集合：`ledgers` / `members` / `entries` / `subscriptions`，权限全部设为「所有用户不可读写」，前端只经云函数访问。
 - 校验：`node --check cloudfunctions/ledgerApi/index.js`；`npx tsc --noEmit`（旧 H5 死代码文件有存量错误，见文末）。
